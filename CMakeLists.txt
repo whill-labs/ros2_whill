@@ -33,16 +33,16 @@ include_directories(
 	${std_msgs_INCLUDE_DIRS}
 )
 
-add_executable(whill_modelc_publisher
-	src/whill_modelc_publisher.cpp 
-	src/whill_modelc/uart.cpp 
-	src/whill_modelc/com_whill.cpp 
-	src/odom.cpp
-)
+#add_executable(whill_modelc_publisher
+#	src/whill_modelc_publisher.cpp 
+#	src/whill_modelc/uart.cpp 
+#	src/whill_modelc/com_whill.cpp 
+#	src/odom.cpp
+#)
 
-ament_target_dependencies(whill_modelc_publisher
-	"rclcpp"
-)
+#ament_target_dependencies(whill_modelc_publisher
+#	"rclcpp"
+#)
 
 add_executable(whill_modelc_controller 
 	src/whill_modelc_controller.cpp 
@@ -56,20 +56,21 @@ ament_target_dependencies(whill_modelc_controller
 
 
 
-target_link_libraries(whill_modelc_publisher
-	${rclcpp_LIBRARIES}
-	${rmw_implementation_LIBRARIES}
-	${std_msgs_LIBRARIES}
-)
+#target_link_libraries(whill_modelc_publisher
+#	${rclcpp_LIBRARIES}
+#	${rmw_implementation_LIBRARIES}
+#	${std_msgs_LIBRARIES}
+#)
+
 target_link_libraries(whill_modelc_controller
 	${rclcpp_LIBRARIES}
 	${rmw_implementation_LIBRARIES}
 	${std_msgs_LIBRARIES}
 )
 
-ament_export_dependencies(rosidl_default_runtime)
 
-install(TARGETS whill_modelc_publisher RUNTIME DESTINATION bin)
+#install(TARGETS whill_modelc_publisher RUNTIME DESTINATION bin)
 install(TARGETS whill_modelc_controller RUNTIME DESTINATION bin)
 
+ament_export_dependencies(rosidl_default_runtime)
 ament_package()
