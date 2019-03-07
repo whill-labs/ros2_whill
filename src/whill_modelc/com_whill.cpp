@@ -28,6 +28,7 @@ SOFTWARE.
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -37,7 +38,7 @@ SOFTWARE.
 #include <fcntl.h>
 #include "./uart.h"
 
-#include "ros/ros.h"
+//#include "ros/ros.h"
 
 #define NUM_ADD_COM (3) //Add "protocol sign". "length of data" and "checksum"
 //Comand ID List

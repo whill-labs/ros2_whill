@@ -40,7 +40,7 @@ SOFTWARE.
 #include <sys/time.h>
 #include "./uart.h"
 
-#include "ros/ros.h"
+//#include "ros/ros.h"
 
 //#define BAUDRATE B19200 //Model A
 #define BAUDRATE B38400 //Model C

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<package format="2">
-  <name>ros_whill</name>
+<package format="3">
+  <name>ros2_whill</name>
   <version>0.0.0</version>
   <description>The ros_whill package</description>
 
@@ -12,19 +12,19 @@
   <url type="website">https://whill.jp/model-cr</url>
   <url type="repository">https://github.com/WHILL/ros_whill</url>
 
-  <author email="shirai@whill.jp">K. Shirai</maintainer>
+  <author email="shirai@whill.jp">K. Shirai</author>
 
 
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <buildtool_depend>rosidl_default_generators</buildtool_depend>
   <depend>rclcpp</depend>
   <depend>rmw_implementation</depend>
   <depend>rclpy</depend>
   <build_depend>std_msgs</build_depend>
+  <build_depend>ros2_whill_interfaces</build_depend>
   <build_export_depend>std_msgs</build_export_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>ros2_whill_interfaces</exec_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
-
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
