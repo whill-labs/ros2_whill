@@ -22,12 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include "ros/ros.h"
-#include "sensor_msgs/Joy.h"
+#include "rclcpp/rclcpp.h"
+#include "sensor_msgs/msg/joy.h"
 
-#include "ros_whill/srvSetSpeedProfile.h"
-#include "ros_whill/srvSetPower.h"
-#include "ros_whill/srvSetBatteryVoltageOut.h"
+#include "ros_whill/srv/SetSpeedProfile.hpp"
+#include "ros_whill/srv/SetPower.hpp"
+#include "ros_whill/srv/SetBatteryVoltageOut.hpp"
 #include "whill_modelc/com_whill.h"
 
 #include <stdio.h>
@@ -51,23 +51,25 @@ SOFTWARE.
 int whill_fd; // file descriptor for UART to communicate with WHILL
 
 // Set Speed Profile
-bool set_speed_profile_srv(ros_whill::srvSetSpeedProfile::Request &req, ros_whill::srvSetSpeedProfile::Response &res)
+bool set_speed_profile_srv(const std::shared_ptr<rmw_request->est_id_t> request->est_header,
+		const std::shared_ptr<ros_whill::srv::SetSpeedProfile::Request> request, 
+		const std::shared_ptr<ros_whill::srv::SetSpeedProfile::Response> response)
 {
 
 	// value check
-	if(0 <= req.s1 && req.s1 <= 5
-		&& 8 <= req.fm1 && req.fm1 <= 60
-		&& 10 <= req.fa1 && req.fa1 <= 90
-		&& 10 <= req.fd1 && req.fd1 <= 160
-		&& 8 <= req.rm1 && req.rm1 <= 60
-		&& 10 <= req.ra1 && req.ra1 <= 90
-		&& 10 <= req.rd1 && req.rd1 <= 160
-		&& 8 <= req.tm1 && req.tm1 <= 60
-		&& 10 <= req.ta1 && req.ta1 <= 90
-		&& 10 <= req.td1 && req.td1 <= 160)
+	if(0 <= request->s1 && request->s1 <= 5
+		&& 8 <= request->fm1 && request->fm1 <= 60
+		&& 10 <= request->fa1 && request->fa1 <= 90
+		&& 10 <= request->fd1 && request->fd1 <= 160
+		&& 8 <= request->rm1 && request->rm1 <= 60
+		&& 10 <= request->ra1 && request->ra1 <= 90
+		&& 10 <= request->rd1 && request->rd1 <= 160
+		&& 8 <= request->tm1 && request->tm1 <= 60
+		&& 10 <= request->ta1 && request->ta1 <= 90
+		&& 10 <= request->td1 && request->td1 <= 160)
 	{
-		ROS_INFO("Speed profile is set");
-		sendSetSpeed(whill_fd, req.s1, req.fm1, req.fa1, req.fd1, req.rm1, req.ra1, req.rd1, req.tm1, req.ta1, req.td1);
+		RCLCPP_INFO("Speed profile is set");
+		sendSetSpeed(whill_fd, request->s1, request->fm1, request->fa1, request->fd1, request->rm1, request->ra1, request->rd1, request->tm1, request->ta1, request->td1);
 		
 		res.result = 1;
 		return true;
@@ -92,10 +94,10 @@ bool set_speed_profile_srv(ros_whill::srvSetSpeedProfile::Request &req, ros_whil
 
 
 // Set Power
-bool set_power_srv(ros_whill::srvSetPower::Request &req, ros_whill::srvSetPower::Response &res)
+bool set_power_srv(ros_whill::srvSetPower::Request &request-> ros_whill::srvSetPower::Response &res)
 {
 	// power off
-	if(req.p0 == 0)
+	if(request->p0 == 0)
 	{
 		sendPowerOff(whill_fd);
 		ROS_INFO("WHILL wakes down\n");
@@ -103,7 +105,7 @@ bool set_power_srv(ros_whill::srvSetPower::Request &req, ros_whill::srvSetPower:
 		return true;
 	}
 	// power on
-	else if (req.p0 == 1)
+	else if (request->p0 == 1)
 	{
 		char recv_buf[128];
 		int len;
@@ -139,13 +141,13 @@ bool set_power_srv(ros_whill::srvSetPower::Request &req, ros_whill::srvSetPower:
 
 
 // Set Battery Voltage out
-bool set_battery_voltage_out_srv(ros_whill::srvSetBatteryVoltageOut::Request &req, ros_whill::srvSetBatteryVoltageOut::Response &res)
+bool set_battery_voltage_out_srv(ros_whill::srvSetBatteryVoltageOut::Request &request-> ros_whill::srvSetBatteryVoltageOut::Response &res)
 {
-	if(req.v0 == 0 || req.v0 == 1)
+	if(request->v0 == 0 || request->v0 == 1)
 	{
-		sendSetBatteryOut(whill_fd, req.v0);
-		if(req.v0 == 0) ROS_INFO("battery voltage out: disable");
-		if(req.v0 == 1) ROS_INFO("battery voltage out: enable");
+		sendSetBatteryOut(whill_fd, request->v0);
+		if(request->v0 == 0) ROS_INFO("battery voltage out: disable");
+		if(request->v0 == 1) ROS_INFO("battery voltage out: enable");
 		res.result = 1;
 		return true;
 	}
@@ -180,15 +182,15 @@ void whillSetJoyMsgCallback(const sensor_msgs::Joy::ConstPtr& joy)
 int main(int argc, char **argv)
 {
 	// ROS setup
-	ros::init(argc, argv, "whill_modelc_controller");
-	ros::NodeHandle nh;
-
-	ros::NodeHandle nh_("~");
+	rclcpp::init(argc, argv);
+	auto node = rclcpp::Node::make_shared("whill_modelc_controller");
+	auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(node);
 	
 	std::string serialport = "/dev/ttyUSB0";
-	nh_.getParam("serialport", serialport);
+	auto serialPort = parameters_client("serialport");
 
 	// Services
+	set_speed_profile_srv_ = 
 	ros::ServiceServer set_speed_profile_svr = nh.advertiseService("set_speed_profile_srv", set_speed_profile_srv);
 	ros::ServiceServer set_power_svr = nh.advertiseService("set_power_srv", set_power_srv);
 	ros::ServiceServer set_battery_voltage_out_svr = nh.advertiseService("set_battery_voltage_out_srv", set_battery_voltage_out_srv);
