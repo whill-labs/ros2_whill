@@ -22,6 +22,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+/*
+Note that this file instantiates a rclcpp::Node without subclassing it. 
+This was the typical usage model in ROS 1, but this style of coding is 
+not compatible with composing multiple nodes into a single process. 
+Thus, it is no longer the recommended style for ROS 2.
+*/
+
 #include "rclcpp/rclcpp.h"
 #include "sensor_msgs/msg/joy.h"
 
@@ -49,12 +56,15 @@ SOFTWARE.
 #define POWERON_RESPONSE_DATA (0x52)
 
 int whill_fd; // file descriptor for UART to communicate with WHILL
+rclcpp::Node::SharedPtr node = nullptr;
 
 // Set Speed Profile
-bool set_speed_profile_srv(const std::shared_ptr<rmw_request->est_id_t> request->est_header,
-		const std::shared_ptr<ros_whill::srv::SetSpeedProfile::Request> request, 
-		const std::shared_ptr<ros_whill::srv::SetSpeedProfile::Response> response)
+bool set_speed_profile_srv(
+	const std::shared_ptr<rmw_request_id_t> request_header,
+	const std::shared_ptr<ros_whill::srv::SetSpeedProfile::Request> request, 
+	const std::shared_ptr<ros_whill::srv::SetSpeedProfile::Response> response)
 {
+	(void)request_header;
 
 	// value check
 	if(0 <= request->s1 && request->s1 <= 5
@@ -68,39 +78,43 @@ bool set_speed_profile_srv(const std::shared_ptr<rmw_request->est_id_t> request-
 		&& 10 <= request->ta1 && request->ta1 <= 90
 		&& 10 <= request->td1 && request->td1 <= 160)
 	{
-		RCLCPP_INFO("Speed profile is set");
+		RCLCPP_INFO(node->get_logger(), "Speed profile is set");
 		sendSetSpeed(whill_fd, request->s1, request->fm1, request->fa1, request->fd1, request->rm1, request->ra1, request->rd1, request->tm1, request->ta1, request->td1);
 		
-		res.result = 1;
+		response->result = 1;
 		return true;
 	}
 	else
 	{
-		ROS_WARN("wrong parameter is assigned.");
-		ROS_WARN("s1 must be assingned between 0 - 5");
-		ROS_WARN("fm1 must be assingned between 8 - 60");
-		ROS_WARN("fa1 must be assingned between 10 - 90");
-		ROS_WARN("fd1 must be assingned between 10 - 160");
-		ROS_WARN("rm1 must be assingned between 8 - 60");
-		ROS_WARN("ra1 must be assingned between 10 - 90");
-		ROS_WARN("rd1 must be assingned between 10 - 160");
-		ROS_WARN("tm1 must be assingned between 8 - 60");
-		ROS_WARN("ta1 must be assingned between 10 - 90");
-		ROS_WARN("td1 must be assingned between 10 - 160");
-		res.result = -1;
+		RCLCPP_WARN(node->get_logger(), "wrong parameter is assigned.");
+		RCLCPP_WARN(node->get_logger(), "s1 must be assingned between 0 - 5");
+		RCLCPP_WARN(node->get_logger(), "fm1 must be assingned between 8 - 60");
+		RCLCPP_WARN(node->get_logger(), "fa1 must be assingned between 10 - 90");
+		RCLCPP_WARN(node->get_logger(), "fd1 must be assingned between 10 - 160");
+		RCLCPP_WARN(node->get_logger(), "rm1 must be assingned between 8 - 60");
+		RCLCPP_WARN(node->get_logger(), "ra1 must be assingned between 10 - 90");
+		RCLCPP_WARN(node->get_logger(), "rd1 must be assingned between 10 - 160");
+		RCLCPP_WARN(node->get_logger(), "tm1 must be assingned between 8 - 60");
+		RCLCPP_WARN(node->get_logger(), "ta1 must be assingned between 10 - 90");
+		RCLCPP_WARN(node->get_logger(), "td1 must be assingned between 10 - 160");
+		response->result = -1;
 		return false;
 	}	
 }
 
 
 // Set Power
-bool set_power_srv(ros_whill::srvSetPower::Request &request-> ros_whill::srvSetPower::Response &res)
+bool set_power_srv(
+	const std::shared_ptr<rmw_request_id_t> request_header,
+	const std::shared_ptr<ros_whill::srv::SetPower::Request> request
+	const std::shared_ptr<ros_whill::srv::SetPower::Response> response)
 {
+	(void)request_header;
 	// power off
 	if(request->p0 == 0)
 	{
 		sendPowerOff(whill_fd);
-		ROS_INFO("WHILL wakes down\n");
+		RCLCPP_INFO(node->get_logger(), "WHILL wakes down\n");
 		res.result = 1;
 		return true;
 	}
@@ -112,27 +126,14 @@ bool set_power_srv(ros_whill::srvSetPower::Request &request-> ros_whill::srvSetP
 
 		sendPowerOn(whill_fd);
 		usleep(2000);
-		len = recvDataWHILL(whill_fd, recv_buf);
 		
-		// success
-		if(recv_buf[POWERON_RESPONSE_DATA_IDX] == POWERON_RESPONSE_DATA)
-		{
-			ROS_INFO("WHILL wakes up");
-			res.result = 1;
-			return true;
-		}
-		// fail
-		else
-		{
-			ROS_WARN("WHILL didn't wake up");
-			res.result = -1;
-			return false;
-		}
-		
+		RCLCPP_INFO("WHILL wakes up");
+		res.result = 1;
+		return true;
 	}
 	else
 	{
-		ROS_WARN("p0 must be assinged 0 or 1");
+		RCLCPP_WARN("p0 must be assinged 0 or 1");
 		res.result = -1;
 		return false;
 	}
@@ -141,19 +142,23 @@ bool set_power_srv(ros_whill::srvSetPower::Request &request-> ros_whill::srvSetP
 
 
 // Set Battery Voltage out
-bool set_battery_voltage_out_srv(ros_whill::srvSetBatteryVoltageOut::Request &request-> ros_whill::srvSetBatteryVoltageOut::Response &res)
+bool set_battery_voltage_out_srv(
+    const std::shared_ptr<rmw_request_id_t> request_header,	
+	const std::shared_ptr<ros_whill::srv::SetBatteryVoltageOut::Request> request,
+	const std::shared_ptr<ros_whill::srv::SetBatteryVoltageOut::Response< response)
 {
+	(void)request_header;
 	if(request->v0 == 0 || request->v0 == 1)
 	{
 		sendSetBatteryOut(whill_fd, request->v0);
-		if(request->v0 == 0) ROS_INFO("battery voltage out: disable");
-		if(request->v0 == 1) ROS_INFO("battery voltage out: enable");
+		if(request->v0 == 0) RCLCPP_INFO(node->get_logger(), "battery voltage out: disable");
+		if(request->v0 == 1) RCLCPP_INFO(node->get_logger(), "battery voltage out: enable");
 		res.result = 1;
 		return true;
 	}
 	else
 	{
-		ROS_INFO("v0 must be assigned 0 or 1");
+		RCLCPP_INFO("v0 must be assigned 0 or 1");
 		res.result = -1;
 		return false;
 	}
@@ -163,7 +168,7 @@ bool set_battery_voltage_out_srv(ros_whill::srvSetBatteryVoltageOut::Request &re
 
 // Set Joystick
 
-void whillSetJoyMsgCallback(const sensor_msgs::Joy::ConstPtr& joy)
+void whillSetJoyMsgCallback(const sensor_msgs::Joy::SharedPtr joy)
 {
 	int joy_side  = -joy->axes[0] * 100.0f;
 	int joy_front = joy->axes[1] * 100.0f;
@@ -175,7 +180,6 @@ void whillSetJoyMsgCallback(const sensor_msgs::Joy::ConstPtr& joy)
 	if(joy_side > 100)  joy_side = 100;
 
 	sendJoystick(whill_fd, joy_front, joy_side);
-
 }
 
 
@@ -183,7 +187,7 @@ int main(int argc, char **argv)
 {
 	// ROS setup
 	rclcpp::init(argc, argv);
-	auto node = rclcpp::Node::make_shared("whill_modelc_controller");
+	node = rclcpp::Node::make_shared("whill_modelc_controller");
 	auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(node);
 	
 	std::string serialport = "/dev/ttyUSB0";
@@ -191,18 +195,19 @@ int main(int argc, char **argv)
 
 	// Services
 	set_speed_profile_srv_ = 
-	ros::ServiceServer set_speed_profile_svr = nh.advertiseService("set_speed_profile_srv", set_speed_profile_srv);
-	ros::ServiceServer set_power_svr = nh.advertiseService("set_power_srv", set_power_srv);
-	ros::ServiceServer set_battery_voltage_out_svr = nh.advertiseService("set_battery_voltage_out_srv", set_battery_voltage_out_srv);
+	auto set_speed_profile_svr = node->create_service<ros_whill::srv::SetSpeedProfile>("set_speed_profile_srv", set_speed_profile_srv);
+	auto set_power_svr = node->create_service<ros_whill::srv::SetPower>("set_power_srv", set_power_srv);
+    auto set_battery_voltage_out_svr = node->create_service<ros_whill::srv::SetBatteryVoltage>("set_battery_voltage_out_srv", set_battery_voltage_out_srv);
 
 	// Subscribers
 	ros::Subscriber whill_setjoy_sub = nh.subscribe("/whill/controller/joy", 100, whillSetJoyMsgCallback);
 
-	initializeComWHILL(&whill_fd,serialport);
-
-	ros::spin();
+	initializeComWHILL(&whill_fd, serialport);
+	rclcpp::spin(node);
 
 	closeComWHILL(whill_fd);
+	rclcpp::shutdown();
+	node = nullptr;
 
 	return 0;
 }
