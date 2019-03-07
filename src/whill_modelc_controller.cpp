@@ -30,8 +30,8 @@ not compatible with composing multiple nodes into a single process.
 Thus, it is no longer the recommended style for ROS 2.
 */
 
-#include "rclcpp/rclcpp.h"
-#include "sensor_msgs/msg/joy.h"
+#include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/joy.hpp"
 
 #include "whill_modelc/com_whill.h"
 #include "ros2_whill_interfaces/srv/set_speed_profile.hpp"
@@ -62,8 +62,8 @@ rclcpp::Node::SharedPtr node = nullptr;
 // Set Speed Profile
 bool set_speed_profile_srv(
 	const std::shared_ptr<rmw_request_id_t> request_header,
-	const std::shared_ptr<ros_whill::srv::SetSpeedProfile::Request> request, 
-	const std::shared_ptr<ros_whill::srv::SetSpeedProfile::Response> response)
+	const std::shared_ptr<ros2_whill_interfaces::srv::SetSpeedProfile::Request> request, 
+	const std::shared_ptr<ros2_whill_interfaces::srv::SetSpeedProfile::Response> response)
 {
 	(void)request_header;
 
@@ -107,8 +107,8 @@ bool set_speed_profile_srv(
 // Set Power
 bool set_power_srv(
 	const std::shared_ptr<rmw_request_id_t> request_header,
-	const std::shared_ptr<ros_whill::srv::SetPower::Request> request
-	const std::shared_ptr<ros_whill::srv::SetPower::Response> response)
+	const std::shared_ptr<ros2_whill_interfaces::srv::SetPower::Request> request,
+	const std::shared_ptr<ros2_whill_interfaces::srv::SetPower::Response> response)
 {
 	(void)request_header;
 	// power off
@@ -116,7 +116,7 @@ bool set_power_srv(
 	{
 		sendPowerOff(whill_fd);
 		RCLCPP_INFO(node->get_logger(), "WHILL wakes down\n");
-		res.result = 1;
+		response->result = 1;
 		return true;
 	}
 	// power on
@@ -128,14 +128,14 @@ bool set_power_srv(
 		sendPowerOn(whill_fd);
 		usleep(2000);
 		
-		RCLCPP_INFO("WHILL wakes up");
-		res.result = 1;
+		RCLCPP_INFO(node->get_logger(), "WHILL wakes up");
+		response->result = 1;
 		return true;
 	}
 	else
 	{
-		RCLCPP_WARN("p0 must be assinged 0 or 1");
-		res.result = -1;
+		RCLCPP_WARN(node->get_logger(), "p0 must be assinged 0 or 1");
+		response->result = -1;
 		return false;
 	}
 
@@ -145,8 +145,8 @@ bool set_power_srv(
 // Set Battery Voltage out
 bool set_battery_voltage_out_srv(
     const std::shared_ptr<rmw_request_id_t> request_header,	
-	const std::shared_ptr<ros_whill::srv::SetBatteryVoltageOut::Request> request,
-	const std::shared_ptr<ros_whill::srv::SetBatteryVoltageOut::Response< response)
+    const std::shared_ptr<ros2_whill_interfaces::srv::SetBatteryVoltageOut::Request> request,
+    const std::shared_ptr<ros2_whill_interfaces::srv::SetBatteryVoltageOut::Response> response)
 {
 	(void)request_header;
 	if(request->v0 == 0 || request->v0 == 1)
@@ -154,13 +154,13 @@ bool set_battery_voltage_out_srv(
 		sendSetBatteryOut(whill_fd, request->v0);
 		if(request->v0 == 0) RCLCPP_INFO(node->get_logger(), "battery voltage out: disable");
 		if(request->v0 == 1) RCLCPP_INFO(node->get_logger(), "battery voltage out: enable");
-		res.result = 1;
+		response->result = 1;
 		return true;
 	}
 	else
 	{
-		RCLCPP_INFO("v0 must be assigned 0 or 1");
-		res.result = -1;
+		RCLCPP_INFO(node->get_logger(), "v0 must be assigned 0 or 1");
+		response->result = -1;
 		return false;
 	}
 
@@ -169,7 +169,7 @@ bool set_battery_voltage_out_srv(
 
 // Set Joystick
 
-void whillSetJoyMsgCallback(const sensor_msgs::Joy::SharedPtr joy)
+void whillSetJoyMsgCallback(const sensor_msgs::msg::Joy::SharedPtr joy)
 {
 	int joy_side  = -joy->axes[0] * 100.0f;
 	int joy_front = joy->axes[1] * 100.0f;
@@ -189,19 +189,25 @@ int main(int argc, char **argv)
 	// ROS setup
 	rclcpp::init(argc, argv);
 	node = rclcpp::Node::make_shared("whill_modelc_controller");
-	auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(node);
+	//auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(node);
 	
 	std::string serialport = "/dev/ttyUSB0";
-	auto serialPort = parameters_client("serialport");
+	//auto parameter = node->get_parameter("serialport");
+	//serialport = parameter.get_value();
+	//auto parameter_vec = parameters_client->get_parameters({"serialport", "machine_ID"});
+	//serialport = parameter_vec[0];
+	//for (auto & parameter : parameters_client->get_parameters({"serialport"}))
+	//{
+	//    serialport = parameter.value_to_string();
+	//}
 
 	// Services
-	set_speed_profile_srv_ = 
-	auto set_speed_profile_svr = node->create_service<ros_whill::srv::SetSpeedProfile>("set_speed_profile_srv", set_speed_profile_srv);
-	auto set_power_svr = node->create_service<ros_whill::srv::SetPower>("set_power_srv", set_power_srv);
-    auto set_battery_voltage_out_svr = node->create_service<ros_whill::srv::SetBatteryVoltage>("set_battery_voltage_out_srv", set_battery_voltage_out_srv);
+	auto set_speed_profile_svr = node->create_service<ros2_whill_interfaces::srv::SetSpeedProfile>("set_speed_profile_srv", set_speed_profile_srv);
+	auto set_power_svr = node->create_service<ros2_whill_interfaces::srv::SetPower>("set_power_srv", set_power_srv);
+    auto set_battery_voltage_out_svr = node->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>("set_battery_voltage_out_srv", set_battery_voltage_out_srv);
 
 	// Subscribers
-	ros::Subscriber whill_setjoy_sub = nh.subscribe("/whill/controller/joy", 100, whillSetJoyMsgCallback);
+	auto whill_setjoy_sub = node->create_subscription<sensor_msgs::msg::Joy>("/whill/controller/joy", whillSetJoyMsgCallback, rmw_qos_profile_sensor_data);
 
 	initializeComWHILL(&whill_fd, serialport);
 	rclcpp::spin(node);
