@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 project(ros2_whill)
 
-add_compile_options(-std=c++11)
+#add_compile_options(-std=c++11)
+if(NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 14)
+endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
@@ -20,7 +23,7 @@ include_directories(
 	${sensor_msgs_INCLUDE_DIRS}
 	${ros2_whill_interfaces_INCLUDE_DIRS}
 )
-message(WARNING "ros2_whill INC: ${ros2_whill_interfaces_INCLUDE_DIRS}")
+#message(WARNING "ros2_whill INC: ${ros2_whill_interfaces_INCLUDE_DIRS}")
 
 #add_executable(whill_modelc_publisher
 #	src/whill_modelc_publisher.cpp 
@@ -59,7 +62,7 @@ target_link_libraries(whill_modelc_controller
 )
 
 #install(TARGETS whill_modelc_publisher RUNTIME DESTINATION bin)
-install(TARGETS whill_modelc_controller RUNTIME DESTINATION bin)
+install(TARGETS whill_modelc_controller RUNTIME DESTINATION lib/${PROJECT_NAME})
 
 ament_export_dependencies(rosidl_default_runtime)
 ament_package()
