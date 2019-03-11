@@ -69,15 +69,15 @@ bool set_speed_profile_srv(
 
 	// value check
 	if(0 <= request->s1 && request->s1 <= 5
-		&& 8 <= request->fm1 && request->fm1 <= 60
+		&& 8 <= request->fm1 && request->fm1 <= 80
 		&& 10 <= request->fa1 && request->fa1 <= 90
-		&& 10 <= request->fd1 && request->fd1 <= 160
-		&& 8 <= request->rm1 && request->rm1 <= 60
-		&& 10 <= request->ra1 && request->ra1 <= 90
-		&& 10 <= request->rd1 && request->rd1 <= 160
-		&& 8 <= request->tm1 && request->tm1 <= 60
-		&& 10 <= request->ta1 && request->ta1 <= 90
-		&& 10 <= request->td1 && request->td1 <= 160)
+		&& 40 <= request->fd1 && request->fd1 <= 160
+		&& 8 <= request->rm1 && request->rm1 <= 30
+		&& 10 <= request->ra1 && request->ra1 <= 50
+		&& 40 <= request->rd1 && request->rd1 <= 80
+		&& 8 <= request->tm1 && request->tm1 <= 35
+		&& 10 <= request->ta1 && request->ta1 <= 100
+		&& 40 <= request->td1 && request->td1 <= 160)
 	{
 		RCLCPP_INFO(node->get_logger(), "Speed profile is set");
 		sendSetSpeed(whill_fd, request->s1, request->fm1, request->fa1, request->fd1, request->rm1, request->ra1, request->rd1, request->tm1, request->ta1, request->td1);
@@ -189,17 +189,8 @@ int main(int argc, char **argv)
 	// ROS setup
 	rclcpp::init(argc, argv);
 	node = rclcpp::Node::make_shared("whill_modelc_controller");
-	//auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(node);
 	
 	std::string serialport = "/dev/ttyUSB0";
-	//auto parameter = node->get_parameter("serialport");
-	//serialport = parameter.get_value();
-	//auto parameter_vec = parameters_client->get_parameters({"serialport", "machine_ID"});
-	//serialport = parameter_vec[0];
-	//for (auto & parameter : parameters_client->get_parameters({"serialport"}))
-	//{
-	//    serialport = parameter.value_to_string();
-	//}
 
 	// Services
 	auto set_speed_profile_svr = node->create_service<ros2_whill_interfaces::srv::SetSpeedProfile>("set_speed_profile_srv", set_speed_profile_srv);
