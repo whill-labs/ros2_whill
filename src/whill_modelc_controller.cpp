@@ -191,11 +191,12 @@ int main(int argc, char **argv)
 	node = rclcpp::Node::make_shared("whill_modelc_controller");
 	
 	std::string serialport = "/dev/ttyUSB0";
+	node->get_parameter("serialport", serialport);
 
 	// Services
-	auto set_speed_profile_svr = node->create_service<ros2_whill_interfaces::srv::SetSpeedProfile>("set_speed_profile_srv", set_speed_profile_srv);
-	auto set_power_svr = node->create_service<ros2_whill_interfaces::srv::SetPower>("set_power_srv", set_power_srv);
-    auto set_battery_voltage_out_svr = node->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>("set_battery_voltage_out_srv", set_battery_voltage_out_srv);
+	auto set_speed_profile_srv = node->create_service<ros2_whill_interfaces::srv::SetSpeedProfile>("/whill/set_speed_profile_srv", set_speed_profile_srv);
+	auto set_power_srv = node->create_service<ros2_whill_interfaces::srv::SetPower>("/whill/set_power_srv", set_power_srv);
+    auto set_battery_voltage_out_srv = node->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>("/whill/set_battery_voltage_out_srv", set_battery_voltage_out_srv);
 
 	// Subscribers
 	auto whill_setjoy_sub = node->create_subscription<sensor_msgs::msg::Joy>("/whill/controller/joy", whillSetJoyMsgCallback, rmw_qos_profile_sensor_data);
