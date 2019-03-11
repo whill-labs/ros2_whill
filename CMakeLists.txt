@@ -25,16 +25,17 @@ include_directories(
 )
 #message(WARNING "ros2_whill INC: ${ros2_whill_interfaces_INCLUDE_DIRS}")
 
-#add_executable(whill_modelc_publisher
-#	src/whill_modelc_publisher.cpp 
-#	src/whill_modelc/uart.cpp 
-#	src/whill_modelc/com_whill.cpp 
-#	src/odom.cpp
-#)
+add_executable(whill_modelc_publisher
+	src/whill_modelc_publisher.cpp 
+	src/whill_modelc/uart.cpp 
+	src/whill_modelc/com_whill.cpp 
+	src/odom.cpp
+)
 
-#ament_target_dependencies(whill_modelc_publisher
-#	"rclcpp"
-#)
+ament_target_dependencies(whill_modelc_publisher
+	"rclcpp"
+	"ros2_whill_interfaces"
+)
 
 add_executable(whill_modelc_controller 
 	src/whill_modelc_controller.cpp 
@@ -47,11 +48,13 @@ ament_target_dependencies(whill_modelc_controller
 	"ros2_whill_interfaces"
 )
 
-#target_link_libraries(whill_modelc_publisher
-#	${rclcpp_LIBRARIES}
-#	${rmw_implementation_LIBRARIES}
-#	${std_msgs_LIBRARIES}
-#)
+target_link_libraries(whill_modelc_publisher
+	${rclcpp_LIBRARIES}
+	${rmw_implementation_LIBRARIES}
+	${std_msgs_LIBRARIES}
+	${sensor_msgs_LIBRARIES}
+	${ros2_whill_interfaces_LIBRARIES}
+)
 
 target_link_libraries(whill_modelc_controller
 	${rclcpp_LIBRARIES}
@@ -61,7 +64,7 @@ target_link_libraries(whill_modelc_controller
 	${ros2_whill_interfaces_LIBRARIES}
 )
 
-#install(TARGETS whill_modelc_publisher RUNTIME DESTINATION bin)
+install(TARGETS whill_modelc_publisher RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(TARGETS whill_modelc_controller RUNTIME DESTINATION lib/${PROJECT_NAME})
 
 ament_export_dependencies(rosidl_default_runtime)
