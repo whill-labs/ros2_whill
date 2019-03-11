@@ -83,15 +83,19 @@ int sendWHILLCmd(int fd, char cmd_data[], int length)
      char data[num_data];
      int checksum = 0;
 
+     //fprintf(stdout, "sendWHILLCmd, fd: %d, cmd: ", fd);
+
      data[0] = PROTOCOL_SIGN;
      data[1] = length + 1; //length of cmd_data + 1(=checksum)
      for(i=0;i<length;i++){
        data[i+2] = cmd_data[i];
+       //fprintf(stdout, "0x%x ", cmd_data[i]);
      }
      for(i=0;i<(num_data-1);i++){
 	  checksum ^= data[i];
      }
      data[num_data-1] = checksum;
+     //fprintf(stdout, ", cksm: 0x%x\n", checksum);
      if(sendCmdUART(fd, data, num_data) < 0){
 	  fprintf(stderr, "Failed to send command No %d\n", data[2]);
 	  return -1;
