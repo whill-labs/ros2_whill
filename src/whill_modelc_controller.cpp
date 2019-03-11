@@ -192,11 +192,15 @@ int main(int argc, char **argv)
 	
 	std::string serialport = "/dev/ttyUSB0";
 	node->get_parameter("serialport", serialport);
+	RCLCPP_INFO(node->get_logger(), "=========================");
+	RCLCPP_INFO(node->get_logger(), "WHILL CR Controller:");
+	RCLCPP_INFO(node->get_logger(), "    serialport: %s", serialport.c_str());
+	RCLCPP_INFO(node->get_logger(), "=========================");
 
 	// Services
-	auto set_speed_profile_srv = node->create_service<ros2_whill_interfaces::srv::SetSpeedProfile>("/whill/set_speed_profile_srv", set_speed_profile_srv);
-	auto set_power_srv = node->create_service<ros2_whill_interfaces::srv::SetPower>("/whill/set_power_srv", set_power_srv);
-    auto set_battery_voltage_out_srv = node->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>("/whill/set_battery_voltage_out_srv", set_battery_voltage_out_srv);
+	auto set_speed_profile = node->create_service<ros2_whill_interfaces::srv::SetSpeedProfile>("/whill/set_speed_profile_srv", set_speed_profile_srv);
+	auto set_power = node->create_service<ros2_whill_interfaces::srv::SetPower>("/whill/set_power_srv", set_power_srv);
+        auto set_battery_voltage_out = node->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>("/whill/set_battery_voltage_out_srv", set_battery_voltage_out_srv);
 
 	// Subscribers
 	auto whill_setjoy_sub = node->create_subscription<sensor_msgs::msg::Joy>("/whill/controller/joy", whillSetJoyMsgCallback, rmw_qos_profile_sensor_data);

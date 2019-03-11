@@ -26,8 +26,8 @@ SOFTWARE.
 #define __ODOM_H__
 
 
-    #include "sensor_msgs/JointState.h"
-    #include "nav_msgs/Odometry.h"
+    #include "sensor_msgs/msg/joint_state.hpp"
+    #include "nav_msgs/msg/odometry.hpp"
 
     class Odometry{
         private:
@@ -39,20 +39,20 @@ SOFTWARE.
                 long double theta;
             }Space2D;
 
-            static const double wheel_radius_ = 0.1325;
-            static const double wheel_tread_  = 0.248;
+            static constexpr double wheel_radius_ = 0.1325;
+            static constexpr double wheel_tread_  = 0.248;
 
             Space2D pose;
             Space2D velocity;
 
         public:
             Odometry();
-            void update(sensor_msgs::JointState joint,double dt);
+            void update(sensor_msgs::msg::JointState joint, double dt);
             void set(Space2D pose);
             void reset();
 
-            nav_msgs::Odometry getROSOdometry();
-            geometry_msgs::TransformStamped getROSTransformStamped();
+            nav_msgs::msg::Odometry getROSOdometry();
+            geometry_msgs::msg::TransformStamped getROSTransformStamped();
             Space2D getOdom();
     };
 

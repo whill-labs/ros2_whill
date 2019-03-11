@@ -27,7 +27,8 @@ SOFTWARE.
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "tf2_ros/transform_broadcaster.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2_ros/transform_broadcaster.h"
 
 #include "./odom.h"
 
@@ -106,10 +107,14 @@ Odometry::Space2D Odometry::getOdom(){
     return pose;
 }
 
-nav_msgs::Odometry Odometry::getROSOdometry(){
-    nav_msgs::Odometry odom;
+nav_msgs::msg::Odometry Odometry::getROSOdometry(){
+    nav_msgs::msg::Odometry odom;
 
-    geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromRollPitchYaw(0, 0, pose.theta);
+    tf2::Quaternion quat_tf;
+    quat_tf.setRPY(0.0, 0.0, pose.theta);
+    geometry_msgs::msg::Quaternion odom_quat = tf2::toMsg(quat_tf);
+    //geometry_msgs::msg::Quaternion odom_quat;
+    //tf2::convert(quat_tf, odom_quat);
 
     // position
     odom.pose.pose.position.x = pose.x;
@@ -130,16 +135,19 @@ nav_msgs::Odometry Odometry::getROSOdometry(){
 
 
 
-geometry_msgs::TransformStamped Odometry::getROSTransformStamped(){
+geometry_msgs::msg::TransformStamped Odometry::getROSTransformStamped(){
 
-    geometry_msgs::TransformStamped odom_trans;
+    geometry_msgs::msg::TransformStamped odom_trans;
 
-    geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromRollPitchYaw(0, 0, pose.theta);
+    tf2::Quaternion quat_tf;
+    quat_tf.setRPY(0.0, 0.0, pose.theta);
+    geometry_msgs::msg::Quaternion odom_quat = tf2::toMsg(quat_tf);
+    //tf2::convert(quat_tf, odom_quat);
 
     odom_trans.transform.translation.x = pose.x;
     odom_trans.transform.translation.y = pose.y;
     odom_trans.transform.translation.z = 0.0;
-    odom_trans.transform.rotation = tf::createQuaternionMsgFromYaw(pose.theta);
+    odom_trans.transform.rotation = odom_quat;
 
     return  odom_trans;
 }

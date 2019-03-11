@@ -37,8 +37,8 @@ Thus, it is no longer the recommended style for ROS 2.
 #include "sensor_msgs/msg/imu.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "nav_msgs/msg/odometry.hpp"
-#include "geometry_msgs/transform_stamped.hpp"
-#include "tf2_ros/transform_broadcaster.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "tf2_ros/transform_broadcaster.h"
 #include "std_srvs/srv/empty.hpp"
 
 #include "ros2_whill_interfaces/msg/whill_model_c.hpp"
@@ -67,11 +67,15 @@ Thus, it is no longer the recommended style for ROS 2.
 #define SPEED_MODE (0)
 #define SEND_INTERVAL (10)
 
+#define DATASET_LEN_OLD (30)
+#define DATASET_LEN_NEW (31)
+
 #define ACC_CONST (0.000122)
 #define GYR_CONST (0.004375)
 #define MANGLE_CONST (0.001)
 #define MSPEED_CONST (0.004)
 
+rclcpp::Node::SharedPtr node = nullptr;
 Odometry odom;
 
 int registerFdToEpoll(struct epoll_event *ev, int epollfd, int fd)
@@ -128,7 +132,7 @@ unsigned int calc_time_diff(unsigned int past,unsigned int current){
 }
 
 bool clearOdom(
-	const std::shared_ptr<rmq_request_id_t> request_header,
+	const std::shared_ptr<rmw_request_id_t> request_header,
 	const std::shared_ptr<std_srvs::srv::Empty::Request> request,
 	const std::shared_ptr<std_srvs::srv::Empty::Response> response){
 
@@ -141,14 +145,14 @@ bool clearOdom(
 int main(int argc, char **argv)
 {
 	// ROS setup
-	ros::init(argc, argv);
+	rclcpp::init(argc, argv);
 	node = rclcpp::Node::make_shared("whill_modelc_publisher");
 
 	auto whill_modelc_pub         = node->create_publisher<ros2_whill_interfaces::msg::WhillModelC>("/whill/modelc_state");
 	auto whill_modelc_joy         = node->create_publisher<sensor_msgs::msg::Joy>("/whill/states/joy");
 	auto whill_modelc_joint_state = node->create_publisher<sensor_msgs::msg::JointState>("/whill/states/joint_state");
 	auto whill_modelc_imu         = node->create_publisher<sensor_msgs::msg::Imu>("/whill/states/imu");
-	auto whill_modelc_battery     = node->create_publisher<sensor_msgs_msg::Battery>("/whill/states/batttery_state");
+	auto whill_modelc_battery     = node->create_publisher<sensor_msgs::msg::BatteryState>("/whill/states/batttery_state");
 	auto whill_modelc_odom        = node->create_publisher<nav_msgs::msg::Odometry>("/whill/odom");
 
 	auto clear_odom_srv           = node->create_service<std_srvs::srv::Empty>("/whill/odom/clear", clearOdom);
@@ -163,6 +167,12 @@ int main(int argc, char **argv)
 	node->get_parameter("serialport", serialport);
 	int send_interval = SEND_INTERVAL;
 	node->get_parameter("send_interval", send_interval);
+	RCLCPP_INFO(node->get_logger(), "=========================");
+	RCLCPP_INFO(node->get_logger(), "WHILL CR Publisher:");
+	RCLCPP_INFO(node->get_logger(), "    serialport: %s", serialport.c_str());
+	RCLCPP_INFO(node->get_logger(), "    wheel_radius: %f", wheel_radius);
+	RCLCPP_INFO(node->get_logger(), "    send_interval: %d", send_interval);
+	RCLCPP_INFO(node->get_logger(), "=========================");
 
 	// Node Param
 	if(send_interval < 10){
@@ -201,19 +211,19 @@ int main(int argc, char **argv)
 		len = recvDataWHILL(whill_fd, recv_buf);
 		if(recv_buf[0] == DATASET_NUM_ZERO && len == 12)
 		{
-			ros_whill::msgWhillSpeedProfile msg_sp;
-			msg_sp.s1  = int(recv_buf[1] & 0xff);
-			msg_sp.fm1 = int(recv_buf[2] & 0xff);
-			msg_sp.fa1 = int(recv_buf[3] & 0xff);
-			msg_sp.fd1 = int(recv_buf[4] & 0xff);
-			msg_sp.rm1 = int(recv_buf[5] & 0xff);
-			msg_sp.ra1 = int(recv_buf[6] & 0xff);
-			msg_sp.rd1 = int(recv_buf[7] & 0xff);
-			msg_sp.tm1 = int(recv_buf[8] & 0xff);
-			msg_sp.ta1 = int(recv_buf[9] & 0xff);
-			msg_sp.td1 = int(recv_buf[10] & 0xff);
-			whill_speed_profile_pub.publish(msg_sp);
-			RCLCPP_INFO(node->get_logger(), "Speed profile %ld is published", msg_sp.s1);
+			auto msg_sp = std::make_shared<ros2_whill_interfaces::msg::WhillSpeedProfile>();
+			msg_sp->s1  = int(recv_buf[1] & 0xff);
+			msg_sp->fm1 = int(recv_buf[2] & 0xff);
+			msg_sp->fa1 = int(recv_buf[3] & 0xff);
+			msg_sp->fd1 = int(recv_buf[4] & 0xff);
+			msg_sp->rm1 = int(recv_buf[5] & 0xff);
+			msg_sp->ra1 = int(recv_buf[6] & 0xff);
+			msg_sp->rd1 = int(recv_buf[7] & 0xff);
+			msg_sp->tm1 = int(recv_buf[8] & 0xff);
+			msg_sp->ta1 = int(recv_buf[9] & 0xff);
+			msg_sp->td1 = int(recv_buf[10] & 0xff);
+			whill_speed_profile->publish(msg_sp);
+			RCLCPP_INFO(node->get_logger(), "Speed profile %ld is published", msg_sp->s1);
 		}
 	}
 
@@ -234,7 +244,7 @@ int main(int argc, char **argv)
 		auto msg = std::make_shared<ros2_whill_interfaces::msg::WhillModelC>();
 		auto joy = std::make_shared<sensor_msgs::msg::Joy>();
 		auto jointState = std::make_shared<sensor_msgs::msg::JointState>();
-		auto Imu = std::make_shared<sensor_msgs::msg::Imu>();
+		auto imu = std::make_shared<sensor_msgs::msg::Imu>();
 		auto batteryState = std::make_shared<sensor_msgs::msg::BatteryState>();
 		auto odomMsg = std::make_shared<nav_msgs::msg::Odometry>();
 
@@ -242,7 +252,7 @@ int main(int argc, char **argv)
 		// Process epoll
 		nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
 		if (nfds == -1) {
-			RCLCPP_INFO(node->get_logger(), "Error : epoll wait");
+			RCLCPP_ERROR(node->get_logger(), "Error : epoll wait");
 			break;
 		}
 		
@@ -250,13 +260,14 @@ int main(int argc, char **argv)
 			// Receive Data From WHILL
 			if(events[i].data.fd == whill_fd) {
 				len = recvDataWHILL(whill_fd, recv_buf);
-				if(recv_buf[0] == DATASET_NUM_ONE && len == 31)
+				RCLCPP_DEBUG(node->get_logger(), "recv_buf[0]: 0x%x, len: %d", recv_buf[0], len);
+				if(recv_buf[0] == DATASET_NUM_ONE && (len == DATASET_LEN_OLD || len == DATASET_LEN_NEW))
 				{
 					unsigned char checksum = 0x00;
-					for(int i = 0; i<=29; i++){
+					for(int i = 0; i <= len - 1; i++){
 						checksum ^= static_cast<unsigned char>(recv_buf[i]);
 					}
-					unsigned char cs = static_cast<unsigned char>(recv_buf[30]);
+					unsigned char cs = static_cast<unsigned char>(recv_buf[len - 1]);
 
 					//printf("%d %d",recv_buf[30],cs);
 					//if(checksum != cs){
@@ -264,11 +275,18 @@ int main(int argc, char **argv)
 					//	continue;
 					//}
 
+					rcutils_time_point_value_t now;
+					
+		                        if (rcutils_system_time_now(&now) != RCUTILS_RET_OK) {
+					    RCLCPP_ERROR(node->get_logger(), "Failed to get system time");
+					}
 
-					rclcpp::Time currentTime = rclcpp::Time::now();
-					joy->header.stamp = currentTime;
-					jointState->header.stamp = currentTime;
-					imu->header.stamp = currentTime;
+					joy->header.stamp.sec = RCL_NS_TO_S(now);
+					joy->header.stamp.nanosec = now - RCL_S_TO_NS(joy->header.stamp.sec);
+					jointState->header.stamp.sec = RCL_NS_TO_S(now);
+					jointState->header.stamp.nanosec = now - RCL_S_TO_NS(jointState->header.stamp.sec);
+					imu->header.stamp.sec = RCL_NS_TO_S(now);
+					imu->header.stamp.nanosec = now - RCL_S_TO_NS(imu->header.stamp.sec);
 
 					msg->acc_x = calc_16bit_signed_data(recv_buf[1], recv_buf[2]) * ACC_CONST;
 					msg->acc_y = calc_16bit_signed_data(recv_buf[3], recv_buf[4]) * ACC_CONST;
@@ -293,11 +311,14 @@ int main(int argc, char **argv)
 
 					msg->speed_mode_indicator = int(recv_buf[27] & 0xff);
 
-					
-					unsigned int time_ms = (unsigned int)(recv_buf[29] & 0xff);
-					static unsigned int past_time_ms = 0;
-					unsigned int time_diff_ms = calc_time_diff(past_time_ms,time_ms);
-					past_time_ms = time_ms;
+					unsigned int time_diff_ms = 0;
+					if(len == DATASET_LEN_NEW)
+					{
+					    unsigned int time_ms = (unsigned int)(recv_buf[29] & 0xff);
+					    static unsigned int past_time_ms = 0;
+					    time_diff_ms = calc_time_diff(past_time_ms,time_ms);
+					    past_time_ms = time_ms;
+					}
 
 
 					// IMU message
@@ -368,21 +389,23 @@ int main(int argc, char **argv)
 
 					// publish
 					whill_modelc_joy->publish(joy);
-					whill_modelc_jointState->publish(jointState);
+					whill_modelc_joint_state->publish(jointState);
 					whill_modelc_imu->publish(imu);
 					whill_modelc_battery->publish(batteryState);
 
 					// Publish Odometry
 					auto odom_trans = std::make_shared<geometry_msgs::msg::TransformStamped>();
 					*odom_trans = odom.getROSTransformStamped();
-					odom_trans->header.stamp = currentTime;
+					odom_trans->header.stamp.sec = RCL_NS_TO_S(now);
+					odom_trans->header.stamp.nanosec = now - RCL_S_TO_NS(odom_trans->header.stamp.sec);
 					odom_trans->header.frame_id = "odom";
 					odom_trans->child_frame_id = "base_footprint";
-					odom_broadcaster_->sendTransform(odom_trans);
+					odom_broadcaster_.sendTransform(*odom_trans);
 
 					auto odom_msg = std::make_shared<nav_msgs::msg::Odometry>();
 					*odom_msg = odom.getROSOdometry();
-					odom_msg->header.stamp = currentTime;
+					odom_msg->header.stamp.sec = RCL_NS_TO_S(now);
+					odom_msg->header.stamp.nanosec = now - RCL_S_TO_NS(odom_msg->header.stamp.sec);
 					odom_msg->header.frame_id = "odom";
 					odom_msg->child_frame_id = "base_footprint";
 					whill_modelc_odom->publish(odom_msg);
@@ -390,7 +413,7 @@ int main(int argc, char **argv)
 			}
 		}
 
-		rclcpp::spinOnce();
+		rclcpp::spin_some(node);
 		
 
 	}
