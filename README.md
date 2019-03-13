@@ -27,21 +27,26 @@ ROS package for WHILL Model CR
 
 
 ## Requirements
-- Ubuntu 16.04
-- ROS kinetic
+- Ubuntu 18.04
+- ROS2 Crystal
+- [ros2_whill_interfaces](https://github.com/WHILL/ros2_whill_interfaces)
 
 ## Build
 In your shell:
 ```sh
-cd ~/catkin_ws
-catkin_make
-rospack profile
+cd ~/<your_ros2_ws>/src
+git clone https://github.com/WHILL/ros2_whill_interfaces.git
+git clone https://github.com/WHILL/ros2_whill.git
+cd ~/<your_ros2_ws>
+colcon build --packages-up-to ros2_whill
+source ./install/local_setup.bash
+
 ```
-ros_whill package is sometimes not recognized if you not set "rospack profile". (After executed "rosrun ros_whill", you might see the error message "not found package".)
+
 
 ### Build only ros_whill package
 ```sh
-catkin_make -DCATKIN_WHITELIST_PACKAGES="ros_whill"
+colcon build --packages-select ros2_whill
 ```
 
 ## SerialPort Settings
@@ -73,17 +78,21 @@ source ~/.zshrc
 ```sh
 echo $TTY_WHILL  # -> Should be /dev/[YOUR SERIAL PORT DEVICE]
 ```
-
-## Launch
-```sh
-roslaunch ros_whill modelc.launch
-```
-
 ### Set serial port as an argument of the launch file
+Edit `serialport` value in the following parameter file and load the param file when you launch nodes.
 ```sh
-roslaunch ros_whill modelc.launch serialport:=/dev/[YOUR SERIAL PORT DEVICE]
+vim ~/<your_ros2_ws>/src/ros2_whill/params/sample_param.yaml
 ```
 
+## Launch nodes
+### Controller node
+```sh
+ros2 run ros2_whill whill_modelc_controller
+```
+### Publisher node
+```sh
+ros2 run ros2_whill whill_modelc_publisher
+```
 
 ### In the case of opening serial port failed
 
@@ -97,7 +106,18 @@ And add:
 KERNEL=="ttyUSB[0-9]*", MODE="0666"
 ```
 
-## Change Speed Profile
+## Call services
+### Change Speed Profile
 ```sh
-rosservice call /set_speed_profile {4, 15, 16, 64, 10, 16, 56, 10, 56, 72}
+ros2 service call /whill/set_speed_profile '{s1: 4, fm1: 15, fa1: 16, fd1: 64, rm1: 10, ra1: 16, rd1: 56, tm1: 10, ta1: 56, td1: 72}'
+```
+
+### Power on
+```sh
+ros2 service call /whill/set_power '{p0: 1}'
+```
+
+### Power off
+```sh
+ros2 service call /whill/set_power '{p0: 0}'
 ```
