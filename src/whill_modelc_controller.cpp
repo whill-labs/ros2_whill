@@ -125,6 +125,9 @@ bool set_power_srv(
         char recv_buf[128];
         int len;
 
+        //After firmware update of Model C, need to send 2times power on command.
+        sendPowerOn(whill_fd);
+        usleep(10000);
         sendPowerOn(whill_fd);
         usleep(2000);
         
