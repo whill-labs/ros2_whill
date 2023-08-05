@@ -233,7 +233,7 @@ public:
                                                                             joy_side = -100;
                                                                         if (joy_side > 100)
                                                                             joy_side = 100;
-                                                                        // sendJoystick(this->whill_fd_, joy_front, joy_side);
+                                                                        sendJoystick(this->whill_fd_, joy_front, joy_side);
                                                                     });
 
         clear_odom_srv_ = this->create_service<std_srvs::srv::Empty>("/whill/odom/clear", [this](const std::shared_ptr<rmw_request_id_t> req_header, const std::shared_ptr<std_srvs::srv::Empty::Request> req, const std::shared_ptr<std_srvs::srv::Empty::Response> res)
@@ -257,8 +257,8 @@ public:
                     && 10 <= req->ta1 && req->ta1 <= 100
                     && 40 <= req->td1 && req->td1 <= 160){
                     RCLCPP_INFO(this->get_logger(), "Speed profile is set");
-                    // sendSetSpeed(this->whill_fd_, req->s1, req->fm1, req->fa1, req->fd1, req->rm1, req->ra1, req->rd1, req->tm1, req->ta1, req->td1);
-                    // releaseJoystick->result = 1;
+                    sendSetSpeed(this->whill_fd_, req->s1, req->fm1, req->fa1, req->fd1, req->rm1, req->ra1, req->rd1, req->tm1, req->ta1, req->td1);
+                    res->result = 1;
                     return true;
                 }else{
                     RCLCPP_WARN(this->get_logger(), "wrong parameter is assigned.");
@@ -272,7 +272,7 @@ public:
                     RCLCPP_WARN(this->get_logger(), "tm1 must be assingned between 8 - 60");
                     RCLCPP_WARN(this->get_logger(), "ta1 must be assingned between 10 - 90");
                     RCLCPP_WARN(this->get_logger(), "td1 must be assingned between 10 - 160");
-                    // releaseJoystick->result = -1;
+                    res->result = -1;
                     return false;
                 } });
 
@@ -282,7 +282,7 @@ public:
 
             // power off
             if(req->p0 == 0){
-                // sendPowerOff(this->whill_fd_);
+                sendPowerOff(this->whill_fd_);
                 RCLCPP_INFO(this->get_logger(), "WHILL wakes down\n");
                 res->result = 1;
                 return true;
@@ -291,10 +291,10 @@ public:
                 int len;
 
                 //After firmware update of Model C, need to send 2times power on command.
-                //sendPowerOn(this->whill_fd_);
-                //usleep(10000);
-                //sendPowerOn(this->whill_fd_);
-                //usleep(2000);
+                sendPowerOn(this->whill_fd_);
+                usleep(10000);
+                sendPowerOn(this->whill_fd_);
+                usleep(2000);
                 RCLCPP_INFO(this->get_logger(), "WHILL wakes up");
                 res->result = 1;
                 return true;
@@ -308,7 +308,7 @@ public:
                                                                                                               {
             (void)req_header;
             if(req->v0 == 0 || req->v0 == 1){
-                // sendSetBatteryOut(this->whill_fd_, request->v0);
+                sendSetBatteryOut(this->whill_fd_, req->v0);
                 if(req->v0 == 0) RCLCPP_INFO(this->get_logger(), "battery voltage out: disable");
                 if(req->v0 == 1) RCLCPP_INFO(this->get_logger(), "battery voltage out: enable");
                 res->result = 1;
@@ -319,6 +319,7 @@ public:
                 return false;
             } });
 
+        // main timer config
         main_timer_ = this->create_wall_timer(100ms, [&]()
                                               {
                                                   ros2_whill_interfaces::msg::WhillModelC state_msg;
@@ -356,6 +357,12 @@ public:
                                                   odom_pub_->publish(odom_msg); });
     }
 
+    /**
+     * @brief Receive data from whill, and parse it. This data is stored in state_msg.
+     * 
+     * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
+     * @return unsigned int elapsed time
+     */
     unsigned int receive_whill_data(ros2_whill_interfaces::msg::WhillModelC &state_msg)
     {
         size_t len = recvDataWHILL(whill_fd_, recv_buf_);
@@ -410,6 +417,12 @@ public:
         }
     }
 
+    /**
+     * @brief Construct ros imu message from state msg
+     * 
+     * @param imu_msg [in/out] sensor_msgs::msg::Imu
+     * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
+     */
     void construct_imu_msg(sensor_msgs::msg::Imu &imu_msg, ros2_whill_interfaces::msg::WhillModelC &state_msg)
     {
         imu_msg.header.stamp = this->get_clock()->now();
@@ -423,6 +436,12 @@ public:
         imu_msg.linear_acceleration.z = state_msg.acc_z * 9.80665; // G to m/ss
     }
 
+    /**
+     * @brief Construct ros BatteryState message from state msg
+     * 
+     * @param battery_state_msg [in/out] sensor_msgs::msg::BatteryState
+     * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
+     */
     void construct_battery_state_msg(sensor_msgs::msg::BatteryState &battery_state_msg, ros2_whill_interfaces::msg::WhillModelC &state_msg)
     {
         battery_state_msg.voltage = 25.2;                                 //[V]
@@ -437,6 +456,12 @@ public:
         battery_state_msg.location = "0";
     }
 
+    /**
+     * @brief Construct ros joy message from state msg
+     * 
+     * @param joy_msg [in/out] sensor_msgs::msg::Joy
+     * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
+     */
     void construct_joy_msg(sensor_msgs::msg::Joy &joy_msg, ros2_whill_interfaces::msg::WhillModelC &state_msg)
     {
         joy_msg.header.stamp = this->get_clock()->now();
@@ -445,6 +470,13 @@ public:
         joy_msg.axes[1] = state_msg.joy_front / 100.0f;
     }
 
+    /**
+     * @brief Construct ros JointState message from state msg
+     * 
+     * @param joint_state_msg [in/out] sensor_msgs::msg::JointState
+     * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
+     * @param time_diff_ms [in] elapsed time
+     */
     void construct_joint_state_msg(sensor_msgs::msg::JointState &joint_state_msg, ros2_whill_interfaces::msg::WhillModelC &state_msg, unsigned int time_diff_ms)
     {
         joint_state_msg.header.stamp = this->get_clock()->now();
@@ -474,6 +506,12 @@ public:
         past[1] = joint_state_msg.position[1];
     }
 
+    /**
+     * @brief Shutdown WHILL
+     * 
+     * @todo does it work correctly???
+     * @todo implement stopping whill process
+     */
     void ShutdownWHILL(void)
     {
         RCLCPP_INFO(this->get_logger(), "Request Stop Sending Data.");
