@@ -3,16 +3,12 @@
 
 ROS2 package for WHILL Model CR
 
-## humble-dev UNDER CONSTRUCTION!!!!
-## crystal-dev -> humble-dev
-
 ## ROS API
 
 ### Subscribed Topics
 
 #### /whill/controller/joy [(sensor_msgs/Joy)](http://docs.ros.org/api/sensor_msgs/html/msg/Joy.html)
 - Virtual WHILL joystick input. You can controll WHILL via this topic.
-
 
 ### Published Topics
 
@@ -23,15 +19,16 @@ ROS2 package for WHILL Model CR
 - Wheel rotate position(rad) and rotation velocity(rad/s)
 
 #### /whill/states/imu [(sensor_msgs/Imu)](http://docs.ros.org/api/sensor_msgs/html/msg/Imu.html)
-- IMU measured data.
+- IMU measured data. 
+- 値バグってそう
 
 #### /whill/states/battery_state [(sensor_msgs/BatteryState)](http://docs.ros.org/api/sensor_msgs/html/msg/BatteryState.html)
 - Battery information
 
 
 ## Requirements
-- Ubuntu 18.04 (Windows & Mac OS support is currently under development)
-- ROS2 Crystal
+- Ubuntu 22.04
+- ROS 2 Humble
 - [ros2_whill_interfaces](https://github.com/WHILL/ros2_whill_interfaces)
 
 ## Build
@@ -39,62 +36,17 @@ In your shell:
 ```sh
 cd ~/<your_ros2_ws>/src
 git clone https://github.com/WHILL/ros2_whill_interfaces.git
-git clone https://github.com/WHILL/ros2_whill.git
+git clone https://github.com/nanoshimarobot/ros2_whill.git
 cd ~/<your_ros2_ws>
 colcon build --packages-up-to ros2_whill
 source install/local_setup.bash
 
 ```
 
-
-### Build only ros_whill package
-```sh
-colcon build --packages-select ros2_whill
-```
-
-## SerialPort Settings
-
-### Set
-
-Edit your `~/.bashrc` (bash) or `~/.zshrc` (zsh) to add this line:
-
-```sh
-export TTY_WHILL=/dev/[YOUR SERIAL PORT DEVICE]
-```
-Setting will be applied automatically from next shell starting or booting up.
-
-#### Apply setting immediately
-
-In your shell:
-
-(bash)
-```bash
-source ~/.bashrc
-```
-
-(zsh)
-```zsh
-source ~/.zshrc
-```
-
-### Check the current setting
-```sh
-echo $TTY_WHILL  # -> Should be /dev/[YOUR SERIAL PORT DEVICE]
-```
-### Set serial port as an argument of the launch file
-Edit `serialport` value in the following parameter file and load the param file when you launch nodes.
-```sh
-vim ~/<your_ros2_ws>/src/ros2_whill/params/sample_param.yaml
-```
-
 ## Launch nodes
 ### Controller node
 ```sh
-ros2 run ros2_whill whill_modelc_controller
-```
-### Publisher node
-```sh
-ros2 run ros2_whill whill_modelc_publisher
+ros2 launch ros2_whill modelc.launch.py
 ```
 
 ### In the case of opening serial port failed
