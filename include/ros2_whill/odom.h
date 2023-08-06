@@ -34,9 +34,9 @@ SOFTWARE.
             long double confineRadian(long double rad);
 
             typedef struct{
-                long double x;
-                long double y;
-                long double theta;
+                double x;
+                double y;
+                double theta;
             }Space2D;
 
             static constexpr double wheel_radius_ = 0.1325;
