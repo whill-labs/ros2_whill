@@ -428,12 +428,12 @@ public:
         imu_msg.header.stamp = this->get_clock()->now();
         imu_msg.header.frame_id = "imu";
         imu_msg.orientation_covariance[0] = -1;
-        imu_msg.angular_velocity.x = state_msg.gyr_x / 180 * M_PI; // deg per sec to rad/s
-        imu_msg.angular_velocity.y = state_msg.gyr_y / 180 * M_PI; // deg per sec to rad/s
-        imu_msg.angular_velocity.z = state_msg.gyr_z / 180 * M_PI; // deg per sec to rad/s
-        imu_msg.linear_acceleration.x = state_msg.acc_x * 9.80665; // G to m/ss
-        imu_msg.linear_acceleration.y = state_msg.acc_y * 9.80665; // G to m/ss
-        imu_msg.linear_acceleration.z = state_msg.acc_z * 9.80665; // G to m/ss
+        imu_msg.angular_velocity.x = state_msg.gyr_x / 65535.0 * 500.0 / 180 * M_PI; // deg per sec to rad/s
+        imu_msg.angular_velocity.y = state_msg.gyr_y / 65535.0 * 500.0 / 180 * M_PI; // deg per sec to rad/s
+        imu_msg.angular_velocity.z = state_msg.gyr_z / 65535.0 * 500.0 / 180 * M_PI; // deg per sec to rad/s
+        imu_msg.linear_acceleration.x = state_msg.acc_x / 65535.0 * 8.0 * 9.80665; // G to m/ss
+        imu_msg.linear_acceleration.y = state_msg.acc_y / 65535.0 * 8.0 * 9.80665; // G to m/ss
+        imu_msg.linear_acceleration.z = state_msg.acc_z / 65535.0 * 8.0 * 9.80665; // G to m/ss
     }
 
     /**
