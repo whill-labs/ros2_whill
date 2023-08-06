@@ -174,6 +174,15 @@ public:
         RCLCPP_INFO(this->get_logger(), "    send_interval: %d", send_interval_);
         RCLCPP_INFO(this->get_logger(), "=========================");
 
+        // pub initialize
+        state_pub_ = this->create_publisher<ros2_whill_interfaces::msg::WhillModelC>("/whill/modelc_state", rclcpp::QoS(10));
+        joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/states/joy", rclcpp::QoS(10));
+        joint_state_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/whill/states/joint_state", rclcpp::QoS(10));
+        imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("/whill/states/imu", rclcpp::QoS(10));
+        battery_state_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("/whill/states/battery_state", rclcpp::QoS(10));
+        odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/whill/odom", rclcpp::QoS(10));
+        speed_prof_pub_ = this->create_publisher<ros2_whill_interfaces::msg::WhillSpeedProfile>("/whill/speed_profile", rclcpp::QoS(10));
+
         // open uart communication
         size_t len, idx;
         initializeComWHILL(&whill_fd_, serial_port_);
@@ -209,16 +218,7 @@ public:
         sendStartSendingData(whill_fd_, send_interval_, DATASET_NUM_ONE, SPEED_MODE);
         usleep(2000);
 
-        // pub/sub/srv initialize
-        state_pub_ = this->create_publisher<ros2_whill_interfaces::msg::WhillModelC>("/whill/modelc_state", rclcpp::QoS(10));
-        joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/states/joy", rclcpp::QoS(10));
-        joint_state_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/whill/states/joint_state", rclcpp::QoS(10));
-        imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("/whill/states/imu", rclcpp::QoS(10));
-        battery_state_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("/whill/states/battery_state", rclcpp::QoS(10));
-        odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/whill/odom", rclcpp::QoS(10));
-
-        speed_prof_pub_ = this->create_publisher<ros2_whill_interfaces::msg::WhillSpeedProfile>("/whill/speed_profile", rclcpp::QoS(10));
-
+        // sub/srv initialize
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>("/whill/controller/joy", rclcpp::QoS(10), [this](const sensor_msgs::msg::Joy::SharedPtr joy)
                                                                     {
                                                                         int joy_side = -joy->axes[0] * 100.0f;
@@ -233,8 +233,7 @@ public:
                                                                             joy_side = -100;
                                                                         if (joy_side > 100)
                                                                             joy_side = 100;
-                                                                        sendJoystick(this->whill_fd_, joy_front, joy_side);
-                                                                    });
+                                                                        sendJoystick(this->whill_fd_, joy_front, joy_side); });
 
         clear_odom_srv_ = this->create_service<std_srvs::srv::Empty>("/whill/odom/clear", [this](const std::shared_ptr<rmw_request_id_t> req_header, const std::shared_ptr<std_srvs::srv::Empty::Request> req, const std::shared_ptr<std_srvs::srv::Empty::Response> res)
                                                                      {
@@ -282,7 +281,7 @@ public:
 
             // power off
             if(req->p0 == 0){
-                sendPowerOff(this->whill_fd_);
+                this->power_off();
                 RCLCPP_INFO(this->get_logger(), "WHILL wakes down\n");
                 res->result = 1;
                 return true;
@@ -291,10 +290,7 @@ public:
                 int len;
 
                 //After firmware update of Model C, need to send 2times power on command.
-                sendPowerOn(this->whill_fd_);
-                usleep(10000);
-                sendPowerOn(this->whill_fd_);
-                usleep(2000);
+                this->power_on();
                 RCLCPP_INFO(this->get_logger(), "WHILL wakes up");
                 res->result = 1;
                 return true;
@@ -320,7 +316,7 @@ public:
             } });
 
         // main timer config
-        main_timer_ = this->create_wall_timer(100ms, [&]()
+        main_timer_ = this->create_wall_timer(10ms, [&]()
                                               {
                                                   ros2_whill_interfaces::msg::WhillModelC state_msg;
                                                   sensor_msgs::msg::Imu imu_msg;
@@ -338,6 +334,8 @@ public:
                                                   construct_joint_state_msg(joint_state_msg, state_msg, time_diff_ms);
                                                   
                                                   odom_.update(joint_state_msg, time_diff_ms / 1000.0f);
+                                                //   RCLCPP_INFO(this->get_logger(), "time_diff : %d [ms]", time_diff_ms);
+                                                //   RCLCPP_INFO(this->get_logger(), "x : %lf, y : %lf, theta : %lf", odom_.getOdom().x, odom_.getOdom().y, odom_.getOdom().theta);
 
                                                   // publish data
                                                   imu_pub_->publish(imu_msg);
@@ -359,7 +357,7 @@ public:
 
     /**
      * @brief Receive data from whill, and parse it. This data is stored in state_msg.
-     * 
+     *
      * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
      * @return unsigned int elapsed time
      */
@@ -399,14 +397,16 @@ public:
             state_msg.power_on = int(recv_buf_[26] && 0xff);
             state_msg.speed_mode_indicator = int(recv_buf_[27] && 0xff);
 
-            unsigned int time_diff_ms = 0;
-            if (len == DATASET_LEN_NEW)
-            {
-                unsigned int time_ms = (unsigned int)(recv_buf_[29] && 0xff);
-                static unsigned int past_time_ms = 0;
-                time_diff_ms = calc_time_diff(past_time_ms, time_ms);
-                past_time_ms = time_ms;
-            }
+            unsigned int time_diff_ms = 10;
+            // time_msが取れないのでとりあえず10msぶちこんどく
+            // if (len == DATASET_LEN_NEW)
+            // {
+            //     unsigned int time_ms = (unsigned int)(recv_buf_[29] && 0xff);
+            //     RCLCPP_INFO(this->get_logger(), "time_ms : %d", time_ms);
+            //     static unsigned int past_time_ms = 0;
+            //     time_diff_ms = calc_time_diff(past_time_ms, time_ms);
+            //     past_time_ms = time_ms;
+            // }
 
             state_msg.error = int(recv_buf_[28] & 0xff);
             if (state_msg.error != 0)
@@ -419,7 +419,7 @@ public:
 
     /**
      * @brief Construct ros imu message from state msg
-     * 
+     *
      * @param imu_msg [in/out] sensor_msgs::msg::Imu
      * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
      */
@@ -438,7 +438,7 @@ public:
 
     /**
      * @brief Construct ros BatteryState message from state msg
-     * 
+     *
      * @param battery_state_msg [in/out] sensor_msgs::msg::BatteryState
      * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
      */
@@ -458,7 +458,7 @@ public:
 
     /**
      * @brief Construct ros joy message from state msg
-     * 
+     *
      * @param joy_msg [in/out] sensor_msgs::msg::Joy
      * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
      */
@@ -472,7 +472,7 @@ public:
 
     /**
      * @brief Construct ros JointState message from state msg
-     * 
+     *
      * @param joint_state_msg [in/out] sensor_msgs::msg::JointState
      * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
      * @param time_diff_ms [in] elapsed time
@@ -508,16 +508,31 @@ public:
 
     /**
      * @brief Shutdown WHILL
-     * 
+     *
      * @todo does it work correctly???
      * @todo implement stopping whill process
      */
-    void ShutdownWHILL(void)
+    void shutdown_whill(void)
     {
         RCLCPP_INFO(this->get_logger(), "Request Stop Sending Data.");
         sendStopSendingData(whill_fd_);
         usleep(1000);
+
+        power_off();
         RCLCPP_INFO(this->get_logger(), "Closing Serial Port.");
         closeComWHILL(whill_fd_);
+    }
+
+    void power_on(void)
+    {
+        sendPowerOn(whill_fd_);
+        usleep(10000);
+        sendPowerOn(whill_fd_);
+        usleep(2000);
+    }
+
+    void power_off(void)
+    {
+        sendPowerOff(this->whill_fd_);
     }
 };

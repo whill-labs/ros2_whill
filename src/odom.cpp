@@ -67,6 +67,7 @@ long double Odometry::confineRadian(long double rad){
 
 void Odometry::update(sensor_msgs::msg::JointState jointState, double dt)
 {
+    // std::cout << dt << std::endl;
     if(dt == 0)return;
 
     double angle_vel_r = jointState.velocity[1];
@@ -104,7 +105,7 @@ void Odometry::set(Space2D pose){
 }
 
 Odometry::Space2D Odometry::getOdom(){
-    return pose;
+    return this->pose;
 }
 
 nav_msgs::msg::Odometry Odometry::getROSOdometry(){

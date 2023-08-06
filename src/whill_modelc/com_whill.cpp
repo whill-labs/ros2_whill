@@ -36,6 +36,7 @@ SOFTWARE.
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <iostream>
 #include "ros2_whill/whill_modelc/uart.h"
 
 //#include "ros/ros.h"
@@ -63,6 +64,7 @@ enum{
 int initializeComWHILL(int *fd,std::string port)
 {
      if(initializeUART(fd,port) < 0){
+       std::cout << "Can't init UART" << std::endl;
 	  fprintf(stderr, "Can't initizalize UART to communicate with WHILL\n");
 	  return -1;
      }
@@ -96,6 +98,7 @@ int sendWHILLCmd(int fd, char cmd_data[], int length)
      }
      data[num_data-1] = checksum;
      //fprintf(stdout, ", cksm: 0x%x\n", checksum);
+     
      if(sendCmdUART(fd, data, num_data) < 0){
 	  fprintf(stderr, "Failed to send command No %d\n", data[2]);
 	  return -1;
