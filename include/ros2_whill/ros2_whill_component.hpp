@@ -97,6 +97,7 @@ class WhillController : public rclcpp::Node
     std::string serial_port_;
     int send_interval_;
     bool enable_cmd_vel_control_;
+    bool enable_joystick_while_cmd_vel_control_;
     int whill_fd_;
 
     char recv_buf_[128];
@@ -172,6 +173,8 @@ class WhillController : public rclcpp::Node
         send_interval_ = get_parameter("send_interval").as_int();
         declare_parameter("enable_cmd_vel_control", false);
         enable_cmd_vel_control_ = get_parameter("enable_cmd_vel_control").as_bool();
+        declare_parameter("enable_joystick_while_cmd_vel_control", false);
+        enable_joystick_while_cmd_vel_control_ = get_parameter("enable_joystick_while_cmd_vel_control").as_bool();
 
         RCLCPP_INFO(this->get_logger(), "=========================");
         RCLCPP_INFO(this->get_logger(), "WHILL CR Controller:");
@@ -179,6 +182,7 @@ class WhillController : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "    wheel_radius: %f", wheel_radius_);
         RCLCPP_INFO(this->get_logger(), "    send_interval: %d", send_interval_);
         RCLCPP_INFO(this->get_logger(), "    enable_cmd_vel: %s", enable_cmd_vel_control_ ? "Yes" : "No");
+        RCLCPP_INFO(this->get_logger(), "    enable_joy_while_cmd_vel_ctrl: %s", enable_joystick_while_cmd_vel_control_ ? "Yes" : "No");
         RCLCPP_INFO(this->get_logger(), "=========================");
 
         // pub initialize
@@ -250,8 +254,7 @@ class WhillController : public rclcpp::Node
         {
             cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
                 "/whill/controller/cmd_vel", rclcpp::QoS(10), [this](const geometry_msgs::msg::Twist::SharedPtr msg) {
-                    while (1)
-                        ;
+                    sendSetSpeed(msg->linear.x, msg->angular.z,this->enable_joystick_while_cmd_vel_control_);
                 });
         }
 
@@ -320,7 +323,6 @@ class WhillController : public rclcpp::Node
                     int len;
 
                     // After firmware update of Model C, need to send
-                    // 2times power on command.
                     this->power_on();
                     RCLCPP_INFO(this->get_logger(), "WHILL wakes up");
                     res->result = 1;
@@ -334,6 +336,7 @@ class WhillController : public rclcpp::Node
                 }
             });
 
+        
         set_battery_voltage_out_srv_ = this->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>(
             "/whill/set_battery_voltage_out_srv",
             [this](const std::shared_ptr<rmw_request_id_t> req_header,

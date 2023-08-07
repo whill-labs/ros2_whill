@@ -297,7 +297,7 @@ int sendSetBatteryOut(int fd, char battery_out)
     return sendWHILLCmd(fd, cmd, num_cmd);
 }
 
-int sendSetSpeed(int fd, float linear, float angular, bool enable_joystick = 0)
+int sendSetSpeed(int fd, float linear, float angular, bool enable_joystick)
 {
     constexpr float tread_width = 0.248f;
     constexpr float unit_velocity = 0.004f / 3.6f;
