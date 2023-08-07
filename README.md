@@ -10,6 +10,12 @@ ROS2 package for WHILL Model CR
 #### /whill/controller/joy [(sensor_msgs/Joy)](http://docs.ros.org/api/sensor_msgs/html/msg/Joy.html)
 - Virtual WHILL joystick input. You can controll WHILL via this topic.
 
+#### /whill/controller/cmd_vel [(geometry_msgs/msg/Twist)](http://docs.ros.org/api/geometry_msgs/html/msg/Twist.html)
+- UNCONFIRMED FUNCTION
+- cmd_vel input. You can control WHILL via this topic.
+- This command is only available ModelCR firmware updated after 2019.12. So, If you want to use this, please update firmware.
+- You can disable this topic by ```enable_cmd_vel_control``` parameter.
+
 ### Published Topics
 
 #### /whill/states/joy [(sensor_msgs/Joy)](http://docs.ros.org/api/sensor_msgs/html/msg/Joy.html)
@@ -20,7 +26,6 @@ ROS2 package for WHILL Model CR
 
 #### /whill/states/imu [(sensor_msgs/Imu)](http://docs.ros.org/api/sensor_msgs/html/msg/Imu.html)
 - IMU measured data. 
-- 値バグってそう
 
 #### /whill/states/battery_state [(sensor_msgs/BatteryState)](http://docs.ros.org/api/sensor_msgs/html/msg/BatteryState.html)
 - Battery information
