@@ -22,40 +22,39 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include <rclcpp/rclcpp.hpp>
-
-#include <sensor_msgs/msg/joy.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
-#include <sensor_msgs/msg/imu.hpp>
-#include <sensor_msgs/msg/battery_state.hpp>
-#include <nav_msgs/msg/odometry.hpp>
-#include <geometry_msgs/msg/transform_stamped.hpp>
-#include <tf2_ros/transform_broadcaster.h>
-#include <std_srvs/srv/empty.hpp>
-
-#include "ros2_whill_interfaces/msg/whill_model_c.hpp"
-#include "ros2_whill_interfaces/msg/whill_speed_profile.hpp"
-#include "ros2_whill_interfaces/srv/set_speed_profile.hpp"
-#include "ros2_whill_interfaces/srv/set_power.hpp"
-#include "ros2_whill_interfaces/srv/set_battery_voltage_out.hpp"
-#include "whill_modelc/com_whill.h"
-
-#include "./odom.h"
-
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <math.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <fcntl.h>
 #include <sys/epoll.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <tf2_ros/transform_broadcaster.h>
 #include <unistd.h>
-#include <math.h>
-#include <limits>
+
 #include <chrono>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <geometry_msgs/msg/twist.hpp>
+#include <limits>
+#include <nav_msgs/msg/odometry.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/battery_state.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <sensor_msgs/msg/joy.hpp>
+#include <std_srvs/srv/empty.hpp>
+
+#include "./odom.h"
+#include "ros2_whill_interfaces/msg/whill_model_c.hpp"
+#include "ros2_whill_interfaces/msg/whill_speed_profile.hpp"
+#include "ros2_whill_interfaces/srv/set_battery_voltage_out.hpp"
+#include "ros2_whill_interfaces/srv/set_power.hpp"
+#include "ros2_whill_interfaces/srv/set_speed_profile.hpp"
+#include "whill_modelc/com_whill.h"
 
 #define MAX_EVENTS (10)
 #define DATASET_NUM_ZERO (0)
@@ -73,7 +72,7 @@ SOFTWARE.
 
 class WhillController : public rclcpp::Node
 {
-private:
+  private:
     rclcpp::Publisher<ros2_whill_interfaces::msg::WhillModelC>::SharedPtr state_pub_;
     rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_pub_;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
@@ -83,6 +82,7 @@ private:
     rclcpp::Publisher<ros2_whill_interfaces::msg::WhillSpeedProfile>::SharedPtr speed_prof_pub_;
 
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
 
     rclcpp::Service<std_srvs::srv::Empty>::SharedPtr clear_odom_srv_;
     rclcpp::Service<ros2_whill_interfaces::srv::SetSpeedProfile>::SharedPtr set_speed_prof_srv_;
@@ -96,6 +96,7 @@ private:
     double wheel_radius_;
     std::string serial_port_;
     int send_interval_;
+    bool enable_cmd_vel_control_;
     int whill_fd_;
 
     char recv_buf_[128];
@@ -152,8 +153,11 @@ private:
         return (unsigned int)diff;
     }
 
-public:
-    WhillController(const rclcpp::NodeOptions &options) : WhillController("", options) {}
+  public:
+    WhillController(const rclcpp::NodeOptions &options) : WhillController("", options)
+    {
+    }
+
     WhillController(const std::string &name_space = "", const rclcpp::NodeOptions &options = rclcpp::NodeOptions())
         : Node("whill_modelc_controller_node", name_space, options), odom_broadcaster_(this)
     {
@@ -166,25 +170,31 @@ public:
         serial_port_ = get_parameter("serial_port").as_string();
         declare_parameter("send_interval", 10);
         send_interval_ = get_parameter("send_interval").as_int();
+        declare_parameter("enable_cmd_vel_control", false);
+        enable_cmd_vel_control_ = get_parameter("enable_cmd_vel_control").as_bool();
 
         RCLCPP_INFO(this->get_logger(), "=========================");
-        RCLCPP_INFO(this->get_logger(), "WHILL CR Publisher:");
+        RCLCPP_INFO(this->get_logger(), "WHILL CR Controller:");
         RCLCPP_INFO(this->get_logger(), "    serialport: %s", serial_port_.c_str());
         RCLCPP_INFO(this->get_logger(), "    wheel_radius: %f", wheel_radius_);
         RCLCPP_INFO(this->get_logger(), "    send_interval: %d", send_interval_);
+        RCLCPP_INFO(this->get_logger(), "    enable_cmd_vel: %s", enable_cmd_vel_control_ ? "Yes" : "No");
         RCLCPP_INFO(this->get_logger(), "=========================");
 
         // pub initialize
-        state_pub_ = this->create_publisher<ros2_whill_interfaces::msg::WhillModelC>("/whill/modelc_state", rclcpp::QoS(10));
+        state_pub_ =
+            this->create_publisher<ros2_whill_interfaces::msg::WhillModelC>("/whill/modelc_state", rclcpp::QoS(10));
         joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/states/joy", rclcpp::QoS(10));
-        joint_state_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/whill/states/joint_state", rclcpp::QoS(10));
+        joint_state_pub_ =
+            this->create_publisher<sensor_msgs::msg::JointState>("/whill/states/joint_state", rclcpp::QoS(10));
         imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("/whill/states/imu", rclcpp::QoS(10));
-        battery_state_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("/whill/states/battery_state", rclcpp::QoS(10));
+        battery_state_pub_ =
+            this->create_publisher<sensor_msgs::msg::BatteryState>("/whill/states/battery_state", rclcpp::QoS(10));
         odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/whill/odom", rclcpp::QoS(10));
-        speed_prof_pub_ = this->create_publisher<ros2_whill_interfaces::msg::WhillSpeedProfile>("/whill/speed_profile", rclcpp::QoS(10));
+        speed_prof_pub_ = this->create_publisher<ros2_whill_interfaces::msg::WhillSpeedProfile>("/whill/speed_profile",
+                                                                                                rclcpp::QoS(10));
 
         // open uart communication
-        size_t len, idx;
         initializeComWHILL(&whill_fd_, serial_port_);
         for (int i = 0; i < 6; ++i)
         {
@@ -192,7 +202,7 @@ public:
             usleep(2000);
             sendStartSendingData(whill_fd_, 25, DATASET_NUM_ZERO, i);
             usleep(2000);
-            len = recvDataWHILL(whill_fd_, recv_buf_);
+            size_t len = recvDataWHILL(whill_fd_, recv_buf_);
             if (recv_buf_[0] == DATASET_NUM_ZERO && len == 12)
             {
                 ros2_whill_interfaces::msg::WhillSpeedProfile speed_prof_msg;
@@ -219,47 +229,61 @@ public:
         usleep(2000);
 
         // sub/srv initialize
-        joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>("/whill/controller/joy", rclcpp::QoS(10), [this](const sensor_msgs::msg::Joy::SharedPtr joy)
-                                                                    {
-                                                                        int joy_side = -joy->axes[0] * 100.0f;
-                                                                        int joy_front = joy->axes[1] * 100.0f;
+        joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
+            "/whill/controller/joy", rclcpp::QoS(10), [this](const sensor_msgs::msg::Joy::SharedPtr joy) {
+                int joy_side = -joy->axes[0] * 100.0f;
+                int joy_front = joy->axes[1] * 100.0f;
 
-                                                                        // value check
-                                                                        if (joy_front < -100)
-                                                                            joy_front = -100;
-                                                                        if (joy_front > 100)
-                                                                            joy_front = 100;
-                                                                        if (joy_side < -100)
-                                                                            joy_side = -100;
-                                                                        if (joy_side > 100)
-                                                                            joy_side = 100;
-                                                                        sendJoystick(this->whill_fd_, joy_front, joy_side); });
-
-        clear_odom_srv_ = this->create_service<std_srvs::srv::Empty>("/whill/odom/clear", [this](const std::shared_ptr<rmw_request_id_t> req_header, const std::shared_ptr<std_srvs::srv::Empty::Request> req, const std::shared_ptr<std_srvs::srv::Empty::Response> res)
-                                                                     {
-            RCLCPP_INFO(this->get_logger(), "Clear Odometry");
-	        this->odom_.reset();
-            return true; });
-
-        set_speed_prof_srv_ = this->create_service<ros2_whill_interfaces::srv::SetSpeedProfile>("/whill/set_speed_profile_srv", [this](const std::shared_ptr<rmw_request_id_t> req_header, const ros2_whill_interfaces::srv::SetSpeedProfile::Request::SharedPtr req, const ros2_whill_interfaces::srv::SetSpeedProfile::Response::SharedPtr res)
-                                                                                                {
-            (void)req_header;
                 // value check
-                if(0 <= req->s1 && req->s1 <= 5
-                    && 8 <= req->fm1 && req->fm1 <= 80
-                    && 10 <= req->fa1 && req->fa1 <= 90
-                    && 40 <= req->fd1 && req->fd1 <= 160
-                    && 8 <= req->rm1 && req->rm1 <= 30
-                    && 10 <= req->ra1 && req->ra1 <= 50
-                    && 40 <= req->rd1 && req->rd1 <= 80
-                    && 8 <= req->tm1 && req->tm1 <= 35
-                    && 10 <= req->ta1 && req->ta1 <= 100
-                    && 40 <= req->td1 && req->td1 <= 160){
+                if (joy_front < -100)
+                    joy_front = -100;
+                if (joy_front > 100)
+                    joy_front = 100;
+                if (joy_side < -100)
+                    joy_side = -100;
+                if (joy_side > 100)
+                    joy_side = 100;
+                sendJoystick(this->whill_fd_, joy_front, joy_side);
+            });
+
+        if (enable_cmd_vel_control_)
+        {
+            cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
+                "/whill/controller/cmd_vel", rclcpp::QoS(10), [this](const geometry_msgs::msg::Twist::SharedPtr msg) {
+                    while (1)
+                        ;
+                });
+        }
+
+        clear_odom_srv_ = this->create_service<std_srvs::srv::Empty>(
+            "/whill/odom/clear", [this](const std::shared_ptr<rmw_request_id_t> req_header,
+                                        const std::shared_ptr<std_srvs::srv::Empty::Request> req,
+                                        const std::shared_ptr<std_srvs::srv::Empty::Response> res) {
+                RCLCPP_INFO(this->get_logger(), "Clear Odometry");
+                this->odom_.reset();
+                return true;
+            });
+
+        set_speed_prof_srv_ = this->create_service<ros2_whill_interfaces::srv::SetSpeedProfile>(
+            "/whill/set_speed_profile_srv",
+            [this](const std::shared_ptr<rmw_request_id_t> req_header,
+                   const ros2_whill_interfaces::srv::SetSpeedProfile::Request::SharedPtr req,
+                   const ros2_whill_interfaces::srv::SetSpeedProfile::Response::SharedPtr res) {
+                (void)req_header;
+                // value check
+                if (0 <= req->s1 && req->s1 <= 5 && 8 <= req->fm1 && req->fm1 <= 80 && 10 <= req->fa1 &&
+                    req->fa1 <= 90 && 40 <= req->fd1 && req->fd1 <= 160 && 8 <= req->rm1 && req->rm1 <= 30 &&
+                    10 <= req->ra1 && req->ra1 <= 50 && 40 <= req->rd1 && req->rd1 <= 80 && 8 <= req->tm1 &&
+                    req->tm1 <= 35 && 10 <= req->ta1 && req->ta1 <= 100 && 40 <= req->td1 && req->td1 <= 160)
+                {
                     RCLCPP_INFO(this->get_logger(), "Speed profile is set");
-                    sendSetSpeed(this->whill_fd_, req->s1, req->fm1, req->fa1, req->fd1, req->rm1, req->ra1, req->rd1, req->tm1, req->ta1, req->td1);
+                    sendSetSpeedProf(this->whill_fd_, req->s1, req->fm1, req->fa1, req->fd1, req->rm1, req->ra1,
+                                     req->rd1, req->tm1, req->ta1, req->td1);
                     res->result = 1;
                     return true;
-                }else{
+                }
+                else
+                {
                     RCLCPP_WARN(this->get_logger(), "wrong parameter is assigned.");
                     RCLCPP_WARN(this->get_logger(), "s1 must be assingned between 0 - 5");
                     RCLCPP_WARN(this->get_logger(), "fm1 must be assingned between 8 - 60");
@@ -273,90 +297,112 @@ public:
                     RCLCPP_WARN(this->get_logger(), "td1 must be assingned between 10 - 160");
                     res->result = -1;
                     return false;
-                } });
+                }
+            });
 
-        set_power_srv_ = this->create_service<ros2_whill_interfaces::srv::SetPower>("/whill/set_power_srv", [this](const std::shared_ptr<rmw_request_id_t> req_header, const ros2_whill_interfaces::srv::SetPower::Request::SharedPtr req, const ros2_whill_interfaces::srv::SetPower::Response::SharedPtr res)
-                                                                                    {
-            (void)req_header;
+        set_power_srv_ = this->create_service<ros2_whill_interfaces::srv::SetPower>(
+            "/whill/set_power_srv", [this](const std::shared_ptr<rmw_request_id_t> req_header,
+                                           const ros2_whill_interfaces::srv::SetPower::Request::SharedPtr req,
+                                           const ros2_whill_interfaces::srv::SetPower::Response::SharedPtr res) {
+                (void)req_header;
 
-            // power off
-            if(req->p0 == 0){
-                this->power_off();
-                RCLCPP_INFO(this->get_logger(), "WHILL wakes down\n");
-                res->result = 1;
-                return true;
-            }else if(req->p0 == 1){
-                char recv_buf[128];
-                int len;
+                // power off
+                if (req->p0 == 0)
+                {
+                    this->power_off();
+                    RCLCPP_INFO(this->get_logger(), "WHILL wakes down\n");
+                    res->result = 1;
+                    return true;
+                }
+                else if (req->p0 == 1)
+                {
+                    char recv_buf[128];
+                    int len;
 
-                //After firmware update of Model C, need to send 2times power on command.
-                this->power_on();
-                RCLCPP_INFO(this->get_logger(), "WHILL wakes up");
-                res->result = 1;
-                return true;
-            }else{
-                RCLCPP_WARN(this->get_logger(), "p0 must be assinged 0 or 1");
-                res->result = -1;
-                return false;
-            } });
+                    // After firmware update of Model C, need to send
+                    // 2times power on command.
+                    this->power_on();
+                    RCLCPP_INFO(this->get_logger(), "WHILL wakes up");
+                    res->result = 1;
+                    return true;
+                }
+                else
+                {
+                    RCLCPP_WARN(this->get_logger(), "p0 must be assinged 0 or 1");
+                    res->result = -1;
+                    return false;
+                }
+            });
 
-        set_battery_voltage_out_srv_ = this->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>("/whill/set_battery_voltage_out_srv", [this](const std::shared_ptr<rmw_request_id_t> req_header, const ros2_whill_interfaces::srv::SetBatteryVoltageOut::Request::SharedPtr req, const ros2_whill_interfaces::srv::SetBatteryVoltageOut::Response::SharedPtr res)
-                                                                                                              {
-            (void)req_header;
-            if(req->v0 == 0 || req->v0 == 1){
-                sendSetBatteryOut(this->whill_fd_, req->v0);
-                if(req->v0 == 0) RCLCPP_INFO(this->get_logger(), "battery voltage out: disable");
-                if(req->v0 == 1) RCLCPP_INFO(this->get_logger(), "battery voltage out: enable");
-                res->result = 1;
-                return true;
-            }else{
-                RCLCPP_INFO(this->get_logger(), "v0 must be assigned 0 or 1");
-                res->result = -1;
-                return false;
-            } });
+        set_battery_voltage_out_srv_ = this->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>(
+            "/whill/set_battery_voltage_out_srv",
+            [this](const std::shared_ptr<rmw_request_id_t> req_header,
+                   const ros2_whill_interfaces::srv::SetBatteryVoltageOut::Request::SharedPtr req,
+                   const ros2_whill_interfaces::srv::SetBatteryVoltageOut::Response::SharedPtr res) {
+                (void)req_header;
+                if (req->v0 == 0 || req->v0 == 1)
+                {
+                    sendSetBatteryOut(this->whill_fd_, req->v0);
+                    if (req->v0 == 0)
+                        RCLCPP_INFO(this->get_logger(), "battery voltage out: disable");
+                    if (req->v0 == 1)
+                        RCLCPP_INFO(this->get_logger(), "battery voltage out: enable");
+                    res->result = 1;
+                    return true;
+                }
+                else
+                {
+                    RCLCPP_INFO(this->get_logger(), "v0 must be assigned 0 or 1");
+                    res->result = -1;
+                    return false;
+                }
+            });
 
         // main timer config
-        main_timer_ = this->create_wall_timer(10ms, [&]()
-                                              {
-                                                  ros2_whill_interfaces::msg::WhillModelC state_msg;
-                                                  sensor_msgs::msg::Imu imu_msg;
-                                                  sensor_msgs::msg::BatteryState battery_state_msg;
-                                                  sensor_msgs::msg::Joy joy_msg;
-                                                  sensor_msgs::msg::JointState joint_state_msg;
-                                                  geometry_msgs::msg::TransformStamped odom_trans;
-                                                  nav_msgs::msg::Odometry odom_msg;
+        main_timer_ = this->create_wall_timer(10ms, [&]() {
+            ros2_whill_interfaces::msg::WhillModelC state_msg;
+            sensor_msgs::msg::Imu imu_msg;
+            sensor_msgs::msg::BatteryState battery_state_msg;
+            sensor_msgs::msg::Joy joy_msg;
+            sensor_msgs::msg::JointState joint_state_msg;
+            geometry_msgs::msg::TransformStamped odom_trans;
+            nav_msgs::msg::Odometry odom_msg;
 
-                                                  // receive data from whill
-                                                  unsigned int time_diff_ms = receive_whill_data(state_msg);
-                                                  construct_imu_msg(imu_msg, state_msg);
-                                                  construct_battery_state_msg(battery_state_msg, state_msg);
-                                                  construct_joy_msg(joy_msg, state_msg);
-                                                  construct_joint_state_msg(joint_state_msg, state_msg, time_diff_ms);
-                                                  
-                                                  odom_.update(joint_state_msg, time_diff_ms / 1000.0f);
-                                                //   RCLCPP_INFO(this->get_logger(), "time_diff : %d [ms]", time_diff_ms);
-                                                //   RCLCPP_INFO(this->get_logger(), "x : %lf, y : %lf, theta : %lf", odom_.getOdom().x, odom_.getOdom().y, odom_.getOdom().theta);
+            // receive data from whill
+            unsigned int time_diff_ms = receive_whill_data(state_msg);
+            construct_imu_msg(imu_msg, state_msg);
+            construct_battery_state_msg(battery_state_msg, state_msg);
+            construct_joy_msg(joy_msg, state_msg);
+            construct_joint_state_msg(joint_state_msg, state_msg, time_diff_ms);
 
-                                                  // publish data
-                                                  imu_pub_->publish(imu_msg);
-                                                  battery_state_pub_->publish(battery_state_msg);
-                                                  joy_pub_->publish(joy_msg);
-                                                  joint_state_pub_->publish(joint_state_msg);
+            odom_.update(joint_state_msg, time_diff_ms / 1000.0f);
+            //   RCLCPP_INFO(this->get_logger(), "time_diff : %d [ms]",
+            //   time_diff_ms); RCLCPP_INFO(this->get_logger(), "x : %lf, y :
+            //   %lf, theta : %lf", odom_.getOdom().x, odom_.getOdom().y,
+            //   odom_.getOdom().theta);
 
-                                                  odom_trans.header.stamp = this->get_clock()->now();
-                                                  odom_trans.header.frame_id = "odom";
-                                                  odom_trans.child_frame_id = "base_footprint";
-                                                  odom_broadcaster_.sendTransform(odom_trans);
+            // publish data
+            imu_pub_->publish(imu_msg);
+            battery_state_pub_->publish(battery_state_msg);
+            joy_pub_->publish(joy_msg);
+            joint_state_pub_->publish(joint_state_msg);
 
-                                                  odom_msg = odom_.getROSOdometry();
-                                                  odom_msg.header.stamp = this->get_clock()->now();
-                                                  odom_msg.header.frame_id = "odom";
-                                                  odom_msg.child_frame_id = "base_footprint";
-                                                  odom_pub_->publish(odom_msg); });
+            odom_trans.header.stamp = this->get_clock()->now();
+            odom_trans.header.frame_id = "odom";
+            odom_trans.child_frame_id = "base_footprint";
+            odom_broadcaster_.sendTransform(odom_trans);
+
+            odom_msg = odom_.getROSOdometry();
+            odom_msg.header.stamp = this->get_clock()->now();
+            odom_msg.header.frame_id = "odom";
+            odom_msg.child_frame_id = "base_footprint";
+            odom_pub_->publish(odom_msg);
+        });
     }
 
     /**
-     * @brief Receive data from whill, and parse it. This data is stored in state_msg.
+     * @brief Receive data from whill, and parse it. This data is stored in
+     * state_msg.
      *
      * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
      * @return unsigned int elapsed time
@@ -401,9 +447,9 @@ public:
             // time_msが取れないのでとりあえず10msぶちこんどく
             // if (len == DATASET_LEN_NEW)
             // {
-            //     unsigned int time_ms = (unsigned int)(recv_buf_[29] && 0xff);
-            //     RCLCPP_INFO(this->get_logger(), "time_ms : %d", time_ms);
-            //     static unsigned int past_time_ms = 0;
+            //     unsigned int time_ms = (unsigned int)(recv_buf_[29] &&
+            //     0xff); RCLCPP_INFO(this->get_logger(), "time_ms : %d",
+            //     time_ms); static unsigned int past_time_ms = 0;
             //     time_diff_ms = calc_time_diff(past_time_ms, time_ms);
             //     past_time_ms = time_ms;
             // }
@@ -431,9 +477,9 @@ public:
         imu_msg.angular_velocity.x = state_msg.gyr_x / 65535.0 * 500.0 / 180 * M_PI; // deg per sec to rad/s
         imu_msg.angular_velocity.y = state_msg.gyr_y / 65535.0 * 500.0 / 180 * M_PI; // deg per sec to rad/s
         imu_msg.angular_velocity.z = state_msg.gyr_z / 65535.0 * 500.0 / 180 * M_PI; // deg per sec to rad/s
-        imu_msg.linear_acceleration.x = state_msg.acc_x / 65535.0 * 8.0 * 9.80665; // G to m/ss
-        imu_msg.linear_acceleration.y = state_msg.acc_y / 65535.0 * 8.0 * 9.80665; // G to m/ss
-        imu_msg.linear_acceleration.z = state_msg.acc_z / 65535.0 * 8.0 * 9.80665; // G to m/ss
+        imu_msg.linear_acceleration.x = state_msg.acc_x / 65535.0 * 8.0 * 9.80665;   // G to m/ss
+        imu_msg.linear_acceleration.y = state_msg.acc_y / 65535.0 * 8.0 * 9.80665;   // G to m/ss
+        imu_msg.linear_acceleration.z = state_msg.acc_z / 65535.0 * 8.0 * 9.80665;   // G to m/ss
     }
 
     /**
@@ -442,7 +488,8 @@ public:
      * @param battery_state_msg [in/out] sensor_msgs::msg::BatteryState
      * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
      */
-    void construct_battery_state_msg(sensor_msgs::msg::BatteryState &battery_state_msg, ros2_whill_interfaces::msg::WhillModelC &state_msg)
+    void construct_battery_state_msg(sensor_msgs::msg::BatteryState &battery_state_msg,
+                                     ros2_whill_interfaces::msg::WhillModelC &state_msg)
     {
         battery_state_msg.voltage = 25.2;                                 //[V]
         battery_state_msg.current = -state_msg.battery_current / 1000.0f; // mA -> A
@@ -477,7 +524,8 @@ public:
      * @param state_msg [in] ros2_whill_interfaces::msg::WhillModelC
      * @param time_diff_ms [in] elapsed time
      */
-    void construct_joint_state_msg(sensor_msgs::msg::JointState &joint_state_msg, ros2_whill_interfaces::msg::WhillModelC &state_msg, unsigned int time_diff_ms)
+    void construct_joint_state_msg(sensor_msgs::msg::JointState &joint_state_msg,
+                                   ros2_whill_interfaces::msg::WhillModelC &state_msg, unsigned int time_diff_ms)
     {
         joint_state_msg.header.stamp = this->get_clock()->now();
         joint_state_msg.name.resize(2);
@@ -490,7 +538,8 @@ public:
         static double past[2] = {0.0f, 0.0f};
 
         if (time_diff_ms != 0)
-            joint_state_msg.velocity[0] = calc_rad_diff(past[0], joint_state_msg.position[0]) / (double(time_diff_ms) / 1000.0f);
+            joint_state_msg.velocity[0] =
+                calc_rad_diff(past[0], joint_state_msg.position[0]) / (double(time_diff_ms) / 1000.0f);
         else
             joint_state_msg.velocity[0] = 0;
 
@@ -500,7 +549,8 @@ public:
         joint_state_msg.position[1] = state_msg.right_motor_angle; // Rad
 
         if (time_diff_ms != 0)
-            joint_state_msg.velocity[1] = calc_rad_diff(past[1], joint_state_msg.position[1]) / (double(time_diff_ms) / 1000.0f);
+            joint_state_msg.velocity[1] =
+                calc_rad_diff(past[1], joint_state_msg.position[1]) / (double(time_diff_ms) / 1000.0f);
         else
             joint_state_msg.velocity[0] = 0;
         past[1] = joint_state_msg.position[1];
@@ -523,6 +573,10 @@ public:
         closeComWHILL(whill_fd_);
     }
 
+    /**
+     * @brief Power on WHILL
+     *
+     */
     void power_on(void)
     {
         sendPowerOn(whill_fd_);
@@ -531,6 +585,10 @@ public:
         usleep(2000);
     }
 
+    /**
+     * @brief Power off WHILL
+     *
+     */
     void power_off(void)
     {
         sendPowerOff(this->whill_fd_);
