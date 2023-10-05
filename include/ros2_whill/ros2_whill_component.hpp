@@ -182,7 +182,8 @@ class WhillController : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "    wheel_radius: %f", wheel_radius_);
         RCLCPP_INFO(this->get_logger(), "    send_interval: %d", send_interval_);
         RCLCPP_INFO(this->get_logger(), "    enable_cmd_vel: %s", enable_cmd_vel_control_ ? "Yes" : "No");
-        RCLCPP_INFO(this->get_logger(), "    enable_joy_while_cmd_vel_ctrl: %s", enable_joystick_while_cmd_vel_control_ ? "Yes" : "No");
+        RCLCPP_INFO(this->get_logger(), "    enable_joy_while_cmd_vel_ctrl: %s",
+                    enable_joystick_while_cmd_vel_control_ ? "Yes" : "No");
         RCLCPP_INFO(this->get_logger(), "=========================");
 
         // pub initialize
@@ -200,6 +201,8 @@ class WhillController : public rclcpp::Node
 
         // open uart communication
         initializeComWHILL(&whill_fd_, serial_port_);
+
+        // get speed profile from WHILL
         for (int i = 0; i < 6; ++i)
         {
             sendStopSendingData(whill_fd_);
@@ -239,14 +242,9 @@ class WhillController : public rclcpp::Node
                 int joy_front = joy->axes[1] * 100.0f;
 
                 // value check
-                if (joy_front < -100)
-                    joy_front = -100;
-                if (joy_front > 100)
-                    joy_front = 100;
-                if (joy_side < -100)
-                    joy_side = -100;
-                if (joy_side > 100)
-                    joy_side = 100;
+                joy_front = (joy_front < -100) ? -100 : (joy_front > 100) ? 100 : joy_front;
+                joy_side = (joy_side < -100) ? -100 : (joy_side > 100) ? 100 : joy_side;
+
                 sendJoystick(this->whill_fd_, joy_front, joy_side);
             });
 
@@ -254,7 +252,8 @@ class WhillController : public rclcpp::Node
         {
             cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
                 "/whill/controller/cmd_vel", rclcpp::QoS(10), [this](const geometry_msgs::msg::Twist::SharedPtr msg) {
-                    sendSetSpeed(msg->linear.x, msg->angular.z,this->enable_joystick_while_cmd_vel_control_);
+                    sendSetSpeed(this->whill_fd_, msg->linear.x, msg->angular.z,
+                                 this->enable_joystick_while_cmd_vel_control_);
                 });
         }
 
@@ -336,7 +335,6 @@ class WhillController : public rclcpp::Node
                 }
             });
 
-        
         set_battery_voltage_out_srv_ = this->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>(
             "/whill/set_battery_voltage_out_srv",
             [this](const std::shared_ptr<rmw_request_id_t> req_header,
