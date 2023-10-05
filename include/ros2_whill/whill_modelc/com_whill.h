@@ -47,4 +47,4 @@ int sendPowerOff(int fd);
 int sendSetSpeedProf(int fd, char s1, char fm1, char fa1, char fd1, char rm1, char ra1, char rd1, char tm1, char ta1,
                      char td1);                  // added on Model C
 int sendSetBatteryOut(int fd, char battery_out); // added on Model C
-int sendSetSpeed(int fd, float linear, float angular, bool enable_joystick = 0);
+int sendSetSpeed(int fd, float linear, float angular);

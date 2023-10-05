@@ -97,7 +97,6 @@ class WhillController : public rclcpp::Node
     std::string serial_port_;
     int send_interval_;
     bool enable_cmd_vel_control_;
-    bool enable_joystick_while_cmd_vel_control_;
     int whill_fd_;
 
     char recv_buf_[128];
@@ -173,8 +172,6 @@ class WhillController : public rclcpp::Node
         send_interval_ = get_parameter("send_interval").as_int();
         declare_parameter("enable_cmd_vel_control", false);
         enable_cmd_vel_control_ = get_parameter("enable_cmd_vel_control").as_bool();
-        declare_parameter("enable_joystick_while_cmd_vel_control", false);
-        enable_joystick_while_cmd_vel_control_ = get_parameter("enable_joystick_while_cmd_vel_control").as_bool();
 
         RCLCPP_INFO(this->get_logger(), "=========================");
         RCLCPP_INFO(this->get_logger(), "WHILL CR Controller:");
@@ -182,8 +179,6 @@ class WhillController : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "    wheel_radius: %f", wheel_radius_);
         RCLCPP_INFO(this->get_logger(), "    send_interval: %d", send_interval_);
         RCLCPP_INFO(this->get_logger(), "    enable_cmd_vel: %s", enable_cmd_vel_control_ ? "Yes" : "No");
-        RCLCPP_INFO(this->get_logger(), "    enable_joy_while_cmd_vel_ctrl: %s",
-                    enable_joystick_while_cmd_vel_control_ ? "Yes" : "No");
         RCLCPP_INFO(this->get_logger(), "=========================");
 
         // pub initialize
@@ -252,8 +247,7 @@ class WhillController : public rclcpp::Node
         {
             cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
                 "/whill/controller/cmd_vel", rclcpp::QoS(10), [this](const geometry_msgs::msg::Twist::SharedPtr msg) {
-                    sendSetSpeed(this->whill_fd_, msg->linear.x, msg->angular.z,
-                                 this->enable_joystick_while_cmd_vel_control_);
+                    sendSetSpeed(this->whill_fd_, msg->linear.x, msg->angular.z);
                 });
         }
 
