@@ -3,4 +3,4 @@ whill_modelc_controller_node:
     serialport: "/dev/ttyUSB0"
     wheel_radius: 0.135
     send_interval: 10
-    enable_cmd_vel_control: false
+    enable_cmd_vel_control: true
