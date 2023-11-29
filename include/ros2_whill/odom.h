@@ -28,33 +28,31 @@ SOFTWARE.
 #include "nav_msgs/msg/odometry.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 
-class Odometry
-{
-  private:
-    long double confineRadian(long double rad);
+class Odometry {
+private:
+  long double confineRadian(long double rad);
 
-    typedef struct
-    {
-        double x;
-        double y;
-        double theta;
-    } Space2D;
+  typedef struct {
+    double x;
+    double y;
+    double theta;
+  } Space2D;
 
-    static constexpr double wheel_radius_ = 0.1325;
-    static constexpr double wheel_tread_ = 0.248;
+  static constexpr double wheel_radius_ = 0.1325;
+  static constexpr double wheel_tread_ = 0.248;
 
-    Space2D pose;
-    Space2D velocity;
+  Space2D pose;
+  Space2D velocity;
 
-  public:
-    Odometry();
-    void update(sensor_msgs::msg::JointState joint, double dt);
-    void set(Space2D pose);
-    void reset();
+public:
+  Odometry();
+  void update(sensor_msgs::msg::JointState joint, double dt);
+  void set(Space2D pose);
+  void reset();
 
-    nav_msgs::msg::Odometry getROSOdometry();
-    geometry_msgs::msg::TransformStamped getROSTransformStamped();
-    Space2D getOdom();
+  nav_msgs::msg::Odometry getROSOdometry();
+  geometry_msgs::msg::TransformStamped getROSTransformStamped();
+  Space2D getOdom();
 };
 
 #endif
