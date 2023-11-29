@@ -2,6 +2,7 @@
 MIT License
 
 Copyright (c) 2018 WHILL inc.
+Copyright (c) 2023 Toyozo Shimada
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,16 +23,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-/*
- * Functions to use UART
- * author : Kazumichi Shirai
- */
+#include "ros2_whill/ros2_whill_component.hpp"
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_components/register_node_macro.hpp>
 
-#include <string> 
-
-#define PROTOCOL_SIGN (0xAF)
-
-int sendCmdUART(int fd, char cmd[], int len);
-int recvDataUART(int fd, char recv_buf[]);
-int initializeUART(int *fd,std::string port);
-void closeUART(int fd);
+RCLCPP_COMPONENTS_REGISTER_NODE(WhillController)

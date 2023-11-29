@@ -2,6 +2,7 @@
 MIT License
 
 Copyright (c) 2018 WHILL inc.
+Copyright (c) 2023 Toyozo Shimada
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,39 +23,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef __ODOM_H__
-#define __ODOM_H__
+#include <memory>
+#include <rclcpp/rclcpp.hpp>
+#include <ros2_whill/ros2_whill_component.hpp>
 
-
-    #include "sensor_msgs/msg/joint_state.hpp"
-    #include "nav_msgs/msg/odometry.hpp"
-
-    class Odometry{
-        private:
-            long double confineRadian(long double rad);
-
-            typedef struct{
-                long double x;
-                long double y;
-                long double theta;
-            }Space2D;
-
-            static constexpr double wheel_radius_ = 0.1325;
-            static constexpr double wheel_tread_  = 0.248;
-
-            Space2D pose;
-            Space2D velocity;
-
-        public:
-            Odometry();
-            void update(sensor_msgs::msg::JointState joint, double dt);
-            void set(Space2D pose);
-            void reset();
-
-            nav_msgs::msg::Odometry getROSOdometry();
-            geometry_msgs::msg::TransformStamped getROSTransformStamped();
-            Space2D getOdom();
-    };
-
-
-#endif
+int main(int argc, char **argv) {
+  rclcpp::init(argc, argv);
+  auto whill_node = std::make_shared<WhillController>();
+  rclcpp::spin(whill_node);
+  rclcpp::shutdown();
+  return 0;
+}

@@ -1,9 +1,6 @@
-whill_modelc_publisher:
-        ros__parameters:
-                serialport: "/dev/ttyUSB0"
-                wheel_radius: 0.135
-                send_interval: 10
-
-whill_modelc_controller:
-        ros__parameters:
-                serialport: "/dev/ttyUSB0"
+whill_modelc_controller_node:
+  ros__parameters:
+    serialport: "/dev/ttyUSB0"
+    wheel_radius: 0.135
+    send_interval: 10
+    enable_cmd_vel_control: true
