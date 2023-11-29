@@ -18,7 +18,9 @@ def generate_launch_description():
             package="robot_state_publisher",
             executable="robot_state_publisher",
             namespace="",
+            # parameters=[{"robot_description" : os.path.join(pkg_dir, "urdf", "modelc.urdf")}],
             remappings=[("/joint_states", "/whill/states/joint_state")],
+            arguments=[os.path.join(pkg_dir, "urdf", "modelc.urdf")]
         ),
         Node(
             package="ros2_whill",

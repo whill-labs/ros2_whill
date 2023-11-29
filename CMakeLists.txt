@@ -25,6 +25,7 @@ endif()
 install(DIRECTORY
   launch
   params
+  urdf
   DESTINATION share/${PROJECT_NAME}/
 )
 
