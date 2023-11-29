@@ -18,7 +18,7 @@ def generate_launch_description():
             package="robot_state_publisher",
             executable="robot_state_publisher",
             namespace="",
-            remappings=[("/joint_states", "/whill/states/jointState")],
+            remappings=[("/joint_states", "/whill/states/joint_state")],
         ),
         Node(
             package="ros2_whill",
