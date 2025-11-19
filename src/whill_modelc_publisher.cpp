@@ -148,16 +148,16 @@ int main(int argc, char **argv)
 	rclcpp::init(argc, argv);
 	node = rclcpp::Node::make_shared("whill_modelc_publisher");
 
-	auto whill_modelc_pub         = node->create_publisher<ros2_whill_interfaces::msg::WhillModelC>("/whill/modelc_state");
-	auto whill_modelc_joy         = node->create_publisher<sensor_msgs::msg::Joy>("/whill/states/joy");
-	auto whill_modelc_joint_state = node->create_publisher<sensor_msgs::msg::JointState>("/whill/states/joint_state");
-	auto whill_modelc_imu         = node->create_publisher<sensor_msgs::msg::Imu>("/whill/states/imu");
-	auto whill_modelc_battery     = node->create_publisher<sensor_msgs::msg::BatteryState>("/whill/states/batttery_state");
-	auto whill_modelc_odom        = node->create_publisher<nav_msgs::msg::Odometry>("/whill/odom");
+	auto whill_modelc_pub         = node->create_publisher<ros2_whill_interfaces::msg::WhillModelC>("/whill/modelc_state", 10);
+	auto whill_modelc_joy         = node->create_publisher<sensor_msgs::msg::Joy>("/whill/states/joy", 10);
+	auto whill_modelc_joint_state = node->create_publisher<sensor_msgs::msg::JointState>("/whill/states/joint_state", 10);
+	auto whill_modelc_imu         = node->create_publisher<sensor_msgs::msg::Imu>("/whill/states/imu", 10);
+	auto whill_modelc_battery     = node->create_publisher<sensor_msgs::msg::BatteryState>("/whill/states/batttery_state", 10);
+	auto whill_modelc_odom        = node->create_publisher<nav_msgs::msg::Odometry>("/whill/odom", 10);
 
 	auto clear_odom_srv           = node->create_service<std_srvs::srv::Empty>("/whill/odom/clear", clearOdom);
 	
-	auto whill_speed_profile      = node->create_publisher<ros2_whill_interfaces::msg::WhillSpeedProfile>("/whill/speed_profile");
+	auto whill_speed_profile      = node->create_publisher<ros2_whill_interfaces::msg::WhillSpeedProfile>("/whill/speed_profile", 10);
 
 	tf2_ros::TransformBroadcaster odom_broadcaster_(node);
 
@@ -220,10 +220,10 @@ int main(int argc, char **argv)
 			msg_sp->ra1 = int(recv_buf[6] & 0xff);
 			msg_sp->rd1 = int(recv_buf[7] & 0xff);
 			msg_sp->tm1 = int(recv_buf[8] & 0xff);
-			msg_sp->ta1 = int(recv_buf[9] & 0xff);
-			msg_sp->td1 = int(recv_buf[10] & 0xff);
-			whill_speed_profile->publish(msg_sp);
-			RCLCPP_INFO(node->get_logger(), "Speed profile %ld is published", msg_sp->s1);
+		msg_sp->ta1 = int(recv_buf[9] & 0xff);
+		msg_sp->td1 = int(recv_buf[10] & 0xff);
+		whill_speed_profile->publish(*msg_sp);
+		RCLCPP_INFO(node->get_logger(), "Speed profile %ld is published", msg_sp->s1);
 		}
 	}
 
@@ -352,48 +352,54 @@ int main(int argc, char **argv)
 					
 					joy->axes.resize(2);
 					joy->axes[0] = -msg->joy_side / 100.0f; //X
-					joy->axes[1] = msg->joy_front  / 100.0f; //Y
+				joy->axes[1] = msg->joy_front  / 100.0f; //Y
 
 
-					// JointState message
-					jointState->name.resize(2);
-					jointState->position.resize(2);
-					jointState->velocity.resize(2);
+				// JointState message
+				jointState->name.resize(2);
+				jointState->position.resize(2);
+				jointState->velocity.resize(2);
 
-					jointState->name[0]     = "leftWheel";
-					jointState->position[0] = msg->left_motor_angle;  //Rad
+				jointState->name[0]     = "leftWheel";
+				jointState->position[0] = msg->left_motor_angle;  //Rad
+				jointState->name[1]     = "rightWheel";
+				jointState->position[1] = msg->right_motor_angle;  //Rad
 
-					static double past[2] = {0.0f,0.0f};
-					
-					if(time_diff_ms != 0)jointState->velocity[0] = calc_rad_diff(past[0],jointState->position[0]) / (double(time_diff_ms) / 1000.0f);
-					else jointState->velocity[0] = 0;
-
+				static double past[2] = {0.0f,0.0f};
+				static bool is_first_data = true;
+				
+				if(is_first_data) {
+					// 初回は速度を0とし、現在位置を初期値として設定
+					jointState->velocity[0] = 0.0;
+					jointState->velocity[1] = 0.0;
 					past[0] = jointState->position[0];
-
-					jointState->name[1]     = "rightWheel";
-					jointState->position[1] = msg->right_motor_angle;  //Rad
-
-					if(time_diff_ms != 0)jointState->velocity[1] = calc_rad_diff(past[1],jointState->position[1]) / (double(time_diff_ms) / 1000.0f);
-					else jointState->velocity[0] = 0;
 					past[1] = jointState->position[1];
+					is_first_data = false;
+				} else {
+					// 2回目以降は正常に速度を計算
+					if(time_diff_ms != 0) {
+						jointState->velocity[0] = calc_rad_diff(past[0],jointState->position[0]) / (double(time_diff_ms) / 1000.0f);
+						jointState->velocity[1] = calc_rad_diff(past[1],jointState->position[1]) / (double(time_diff_ms) / 1000.0f);
+					} else {
+						jointState->velocity[0] = 0;
+						jointState->velocity[1] = 0;
+					}
+					past[0] = jointState->position[0];
+					past[1] = jointState->position[1];
+				}
 
-
-					odom.update(*jointState, time_diff_ms/1000.0f);
-					
-
+				odom.update(*jointState, time_diff_ms/1000.0f);
 					msg->error = int(recv_buf[28] & 0xff);
 					if(msg->error != 0)
 					{
 						RCLCPP_WARN(node->get_logger(), "WHILL sends error message. error id: %d", msg->error);
 					}
 
-					// publish
-					whill_modelc_joy->publish(joy);
-					whill_modelc_joint_state->publish(jointState);
-					whill_modelc_imu->publish(imu);
-					whill_modelc_battery->publish(batteryState);
-
-					// Publish Odometry
+				// publish
+				whill_modelc_joy->publish(*joy);
+				whill_modelc_joint_state->publish(*jointState);
+				whill_modelc_imu->publish(*imu);
+				whill_modelc_battery->publish(*batteryState);					// Publish Odometry
 					auto odom_trans = std::make_shared<geometry_msgs::msg::TransformStamped>();
 					*odom_trans = odom.getROSTransformStamped();
 					odom_trans->header.stamp.sec = RCL_NS_TO_S(now);
@@ -402,20 +408,19 @@ int main(int argc, char **argv)
 					odom_trans->child_frame_id = "base_footprint";
 					odom_broadcaster_.sendTransform(*odom_trans);
 
-					auto odom_msg = std::make_shared<nav_msgs::msg::Odometry>();
-					*odom_msg = odom.getROSOdometry();
-					odom_msg->header.stamp.sec = RCL_NS_TO_S(now);
-					odom_msg->header.stamp.nanosec = now - RCL_S_TO_NS(odom_msg->header.stamp.sec);
-					odom_msg->header.frame_id = "odom";
-					odom_msg->child_frame_id = "base_footprint";
-					whill_modelc_odom->publish(odom_msg);
-				}
+
+				auto odom_msg = std::make_shared<nav_msgs::msg::Odometry>();
+				*odom_msg = odom.getROSOdometry();
+				odom_msg->header.stamp.sec = RCL_NS_TO_S(now);
+				odom_msg->header.stamp.nanosec = now - RCL_S_TO_NS(odom_msg->header.stamp.sec);
+				odom_msg->header.frame_id = "odom";
+				odom_msg->child_frame_id = "base_footprint";
+				whill_modelc_odom->publish(*odom_msg);
 			}
 		}
+	}
 
-		rclcpp::spin_some(node);
-		
-
+	rclcpp::spin_some(node);
 	}
 
 	// send StopSendingData command

@@ -32,6 +32,7 @@ Thus, it is no longer the recommended style for ROS 2.
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
+#include "geometry_msgs/msg/twist.hpp"
 
 #include "whill_modelc/com_whill.h"
 #include "ros2_whill_interfaces/srv/set_speed_profile.hpp"
@@ -170,8 +171,7 @@ bool set_battery_voltage_out_srv(
 }
 
 
-// Set Joystick
-
+// Set Joystick (from Joy message)
 void whillSetJoyMsgCallback(const sensor_msgs::msg::Joy::SharedPtr joy)
 {
     int joy_side  = -joy->axes[0] * 100.0f;
@@ -184,6 +184,37 @@ void whillSetJoyMsgCallback(const sensor_msgs::msg::Joy::SharedPtr joy)
     if(joy_side > 100)  joy_side = 100;
 
     sendJoystick(whill_fd, joy_front, joy_side);
+}
+
+// Set velocity (from Twist message)
+void whillSetCmdVelCallback(const geometry_msgs::msg::Twist::SharedPtr cmd_vel)
+{
+    // WHILL Model C specifications:
+    // - Maximum speed: approximately 1.66 m/s (measured from odometry)
+    // - Joy command range: -100 to 100
+    // - Wheel tread: approximately 0.496 m (based on CR2)
+    
+    // Convert linear velocity (m/s) to joy command (-100 to 100)
+    // joy_front = (linear_x / max_speed) * 100
+    const float MAX_LINEAR_SPEED = 1.66;  // m/s
+    int joy_front = (int)(cmd_vel->linear.x / MAX_LINEAR_SPEED * 100.0f);
+    
+    // Convert angular velocity (rad/s) to joy command (-100 to 100)
+    // For differential drive: linear_side = angular_z * wheel_tread / 2
+    // Estimated max angular velocity: approximately 0.83 rad/s
+    const float MAX_ANGULAR_SPEED = 0.83;  // rad/s
+    int joy_side = -(int)(cmd_vel->angular.z / MAX_ANGULAR_SPEED * 100.0f);
+    
+    // value check
+    if(joy_front < -100) joy_front = -100;
+    if(joy_front > 100)  joy_front = 100;
+    if(joy_side < -100) joy_side = -100;
+    if(joy_side > 100)  joy_side = 100;
+
+    sendJoystick(whill_fd, joy_front, joy_side);
+    
+    RCLCPP_DEBUG(node->get_logger(), "[CmdVel] linear: %.3f m/s, angular: %.3f rad/s -> joy_front: %d, joy_side: %d",
+                 cmd_vel->linear.x, cmd_vel->angular.z, joy_front, joy_side);
 }
 
 
@@ -206,7 +237,8 @@ int main(int argc, char **argv)
     auto set_battery_voltage_out = node->create_service<ros2_whill_interfaces::srv::SetBatteryVoltageOut>("/whill/set_battery_voltage_out_srv", set_battery_voltage_out_srv);
 
     // Subscribers
-    auto whill_setjoy_sub = node->create_subscription<sensor_msgs::msg::Joy>("/whill/controller/joy", whillSetJoyMsgCallback, rmw_qos_profile_sensor_data);
+    auto whill_setjoy_sub = node->create_subscription<sensor_msgs::msg::Joy>("/whill/controller/joy", rclcpp::SensorDataQoS(), whillSetJoyMsgCallback);
+    auto whill_setcmdvel_sub = node->create_subscription<geometry_msgs::msg::Twist>("/whill/controller/cmd_vel", rclcpp::SensorDataQoS(), whillSetCmdVelCallback);
 
     initializeComWHILL(&whill_fd, serialport);
     rclcpp::spin(node);

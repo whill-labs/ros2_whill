@@ -27,7 +27,7 @@ SOFTWARE.
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 
 #include "./odom.h"

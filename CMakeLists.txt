@@ -54,6 +54,8 @@ add_executable(whill_modelc_controller
 
 ament_target_dependencies(whill_modelc_controller
 	"rclcpp"
+	"sensor_msgs"
+	"geometry_msgs"
 	"ros2_whill_interfaces"
 )
 
@@ -75,6 +77,7 @@ target_link_libraries(whill_modelc_controller
 	${rmw_implementation_LIBRARIES}
 	${std_msgs_LIBRARIES}
 	${sensor_msgs_LIBRARIES}
+	${geometry_msgs_LIBRARIES}
 	${ros2_whill_interfaces_LIBRARIES}
 )
 

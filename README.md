@@ -8,7 +8,14 @@ ROS2 package for WHILL Model CR
 ### Subscribed Topics
 
 #### /whill/controller/joy [(sensor_msgs/Joy)](http://docs.ros.org/api/sensor_msgs/html/msg/Joy.html)
-- Virtual WHILL joystick input. You can controll WHILL via this topic.
+- Virtual WHILL joystick input. You can control WHILL via this topic.
+- `axes[0]`: Side direction (-1.0 to 1.0, negative = right)
+- `axes[1]`: Front direction (-1.0 to 1.0, positive = forward)
+
+#### /whill/controller/cmd_vel [(geometry_msgs/Twist)](http://docs.ros.org/api/geometry_msgs/html/msg/Twist.html)
+- Standard ROS velocity command. You can control WHILL via this topic.
+- `linear.x`: Forward velocity in m/s (max ~1.66 m/s)
+- `angular.z`: Angular velocity in rad/s (max ~0.83 rad/s, positive = counter-clockwise)
 
 
 ### Published Topics
