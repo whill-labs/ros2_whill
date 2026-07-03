@@ -63,7 +63,13 @@ void WhillNode::Initialize()
   set_joystick_lock_srv_ = this->create_service<whill_msgs::srv::SetJoystickLock>(
     "/whill/set_joystick_lock_srv", std::bind(&WhillNode::OnSetJoystickLockSrv, this, _1, _2, _3));
 
-  // start sending WHILL State Dataset1
+  // start sending WHILL State Dataset1 with retry for recovery
+  whill_->SendStartSendingDataCommand(
+    publish_interval_ms, model_cr2::kDatasetNumber1,
+    model_cr2::kSpeedMode0);
+
+  std::this_thread::sleep_for(100ms);
+
   whill_->SendStartSendingDataCommand(
     publish_interval_ms, model_cr2::kDatasetNumber1,
     model_cr2::kSpeedMode0);
@@ -129,7 +135,7 @@ void WhillNode::OnSetPowerSrv(
       break;
     case 1:
       whill_->SetPowerOn();
-      std::this_thread::sleep_for(10ms);
+      std::this_thread::sleep_for(100ms);
       whill_->SetPowerOn();
       std::this_thread::sleep_for(2ms);
       RCLCPP_INFO(this->get_logger(), "WHILL power on");
