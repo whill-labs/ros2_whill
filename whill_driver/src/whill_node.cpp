@@ -9,6 +9,7 @@
 #include "whill_driver/whill_node.hpp"
 
 #include <chrono>
+#include <thread>
 
 using namespace std::chrono_literals;
 using namespace std::placeholders;
@@ -128,9 +129,9 @@ void WhillNode::OnSetPowerSrv(
       break;
     case 1:
       whill_->SetPowerOn();
-      usleep(10000);
+      std::this_thread::sleep_for(10ms);
       whill_->SetPowerOn();
-      usleep(2000);
+      std::this_thread::sleep_for(2ms);
       RCLCPP_INFO(this->get_logger(), "WHILL power on");
       response->result = 1;
       break;
