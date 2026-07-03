@@ -59,6 +59,8 @@ void WhillNode::Initialize()
     std::bind(&WhillNode::OnSetBatteryVoltageOutSrv, this, _1, _2, _3));
   set_battery_saving_srv_ = this->create_service<whill_msgs::srv::SetBatterySaving>(
     "/whill/set_battery_saving_srv", std::bind(&WhillNode::OnSetBatterySavingSrv, this, _1, _2, _3));
+  set_joystick_lock_srv_ = this->create_service<whill_msgs::srv::SetJoystickLock>(
+    "/whill/set_joystick_lock_srv", std::bind(&WhillNode::OnSetJoystickLockSrv, this, _1, _2, _3));
 
   // start sending WHILL State Dataset1
   whill_->SendStartSendingDataCommand(
@@ -251,6 +253,30 @@ void WhillNode::OnSetBatterySavingSrv(
   RCLCPP_INFO(this->get_logger(), "Battery saving settings are set (l0: %d, b0: %d)", l0, b0);
   whill_->SendSetBatterySavingCommand(l0, b0);
   response->result = 1;
+}
+
+void WhillNode::OnSetJoystickLockSrv(
+  const std::shared_ptr<rmw_request_id_t> request_header,
+  const std::shared_ptr<whill_msgs::srv::SetJoystickLock::Request> request,
+  const std::shared_ptr<whill_msgs::srv::SetJoystickLock::Response> response)
+{
+  (void)request_header;
+  switch (request->d0) {
+    case 0:
+      whill_->SendSetJoystickLockCommand(false);
+      RCLCPP_INFO(this->get_logger(), "joystick lock: resume (unlock)");
+      response->result = 1;
+      break;
+    case 1:
+      whill_->SendSetJoystickLockCommand(true);
+      RCLCPP_INFO(this->get_logger(), "joystick lock: pause (lock)");
+      response->result = 1;
+      break;
+    default:
+      RCLCPP_WARN(this->get_logger(), "d0 must be assigned 0 (resume) or 1 (pause)");
+      response->result = -1;
+      break;
+  }
 }
 
 /**

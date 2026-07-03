@@ -29,6 +29,8 @@ enum CommandId : uint8_t
   kSetBatterySaving,
   kReserved,
   kSetVelocity,
+  kReserved1,
+  kSetJoystickLock,
   kMax
 };
 
@@ -46,6 +48,7 @@ enum CommandSize : uint8_t
   kSetBatterySavingCommandSize = 4,
   kReservedCommandSize,
   kSetVelocityCommandSize = 7,
+  kSetJoystickLockCommandSize = 3,
   kMaxCommandSize = 16
 };
 
@@ -235,6 +238,19 @@ int Whill::SendSetVelocityCommand(int linear, int angular)
   packet[idx++] = (uint8_t)(linear & 0x000000FF);
   packet[idx++] = (uint8_t)((angular >> 8) & 0x000000FF);
   packet[idx++] = (uint8_t)(angular & 0x000000FF);
+  packet[idx] = parser_->Checksum(packet, idx);
+  return port_->Send(packet, sizeof(packet));
+}
+
+int Whill::SendSetJoystickLockCommand(bool lock)
+{
+  int idx = 0;
+  uint8_t packet[kHeaderSize + CommandSize::kSetJoystickLockCommandSize] = {0};
+
+  packet[idx++] = kProtocolSign;
+  packet[idx++] = CommandSize::kSetJoystickLockCommandSize;
+  packet[idx++] = CommandId::kSetJoystickLock;
+  packet[idx++] = lock ? 0x01 : 0x00;  // D0: 1:pause(lock) / 0:resume(unlock)
   packet[idx] = parser_->Checksum(packet, idx);
   return port_->Send(packet, sizeof(packet));
 }

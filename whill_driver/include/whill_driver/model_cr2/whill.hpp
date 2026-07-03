@@ -69,6 +69,7 @@ public:
   int SendSetBatteryVoltageOutCommand(uint8_t battery_out);
   int SendSetBatterySavingCommand(uint8_t low_battery_level, uint8_t sounds_buzzer);
   int SendSetVelocityCommand(int linear, int angular);
+  int SendSetJoystickLockCommand(bool lock);
   int ReceiveDataset0(std::shared_ptr<whill_msgs::msg::SpeedProfile> & msg);
   int ReceiveDataset1(std::shared_ptr<whill_msgs::msg::ModelCr2State> & msg);
 
