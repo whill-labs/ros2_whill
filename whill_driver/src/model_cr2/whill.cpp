@@ -283,6 +283,8 @@ int Whill::ReceiveDataset1(std::shared_ptr<whill_msgs::msg::ModelCr2State> & msg
 
   if (payload[0] == 1) {
     // Dataset1
+    msg->joy_front = int8_t(payload[13]);
+    msg->joy_side = int8_t(payload[14]);
     msg->battery_power = int(payload[15] & 0xff);
     msg->battery_current = Calc16BitSignedData(payload[16], payload[17]);
     msg->right_motor_angle =
